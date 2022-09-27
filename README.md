@@ -28,11 +28,11 @@ To create a new repository based on this repository choose it on the "Create a n
 
 3. Install this module within Magento 2 using composer
     ```
-    composer require studioraz/magento2-{module-name}
+    composer require studioraz/magento2-cloudflare
     ```
 
 4. After this, enable the module as usual
     ```
-    bin/magento mo:e SR_{ModuleName} &&
+    bin/magento mo:e SR_Cloudflare &&
     bin/magento s:up
     ```

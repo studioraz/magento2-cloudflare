@@ -8,6 +8,6 @@ use \Magento\Framework\Component\ComponentRegistrar;
 
 ComponentRegistrar::register(
     ComponentRegistrar::MODULE,
-    'SR_{ModuleName}',
+    'SR_Cloudflare',
     __DIR__
 );

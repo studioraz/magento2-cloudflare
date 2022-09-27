@@ -7,7 +7,19 @@
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
     <menu>
-        <add id="SR_{ModuleName}::config" title="{ModuleName}" module="SR_{ModuleName}" translate="title" sortOrder="10000"
-             action="adminhtml/system_config/edit/section/sr_{ModuleName}" parent="SR_Base::srbase" resource="SR_{ModuleName}::config"/>
+        <add id="SR_Cloudflare::srcloudflare"
+             parent="SR_Base::srbase"
+             module="SR_Cloudflare"
+             title="Cloudflare"
+             sortOrder="580"
+             resource="SR_Cloudflare::srcloudflare"/>
+
+        <add id="SR_Cloudflare::srcloudflare_settings"
+             title="Settings"
+             sortOrder="1000"
+             module="Cloudflare"
+             parent="SR_Cloudflare::srcloudflare"
+             action="adminhtml/system_config/edit/section/srcloudflare/"
+             resource="SR_Cloudflare::srcloudflare_settings"/>
     </menu>
 </config>

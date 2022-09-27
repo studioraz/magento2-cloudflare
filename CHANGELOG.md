@@ -11,5 +11,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project init
 
 
-[Unreleased]: https://github.com/studioraz/magento2-{module-name}/compare/1.0.0...HEAD
-[1.0.0]: https://github.com/studioraz/magento2-{module-name}/releases/tag/1.0.0
+[Unreleased]: https://github.com/studioraz/magento2-cloudflare/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/studioraz/magento2-cloudflare/releases/tag/1.0.0

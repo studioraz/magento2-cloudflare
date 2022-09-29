@@ -1,0 +1,48 @@
+<?php
+/*
+ * Copyright © 2022 Studio Raz. All rights reserved.
+ * See LICENCE file for license details.
+ */
+
+declare(strict_types=1);
+
+namespace SR\Cloudflare\Plugin\Theme\Header;
+
+use Magento\Theme\Block\Html\Header\Logo;
+use SR\Cloudflare\Config\ModuleState;
+use SR\Cloudflare\Helper\CloudflareUrlFormatHelper;
+
+class GetLogoSrcPlugin
+{
+    private ModuleState $moduleState;
+    private CloudflareUrlFormatHelper $ulrFormatter;
+
+    /**
+     * @param ModuleState $moduleState
+     * @param CloudflareUrlFormatHelper $ulrFormatter
+     */
+    public function __construct(
+        ModuleState $moduleState,
+        CloudflareUrlFormatHelper $ulrFormatter
+    ) {
+        $this->moduleState = $moduleState;
+        $this->ulrFormatter = $ulrFormatter;
+    }
+
+    /**
+     * AFTER Plugin
+     * @see \Magento\Theme\Block\Html\Header\Logo::getLogoSrc
+     *
+     * @param Logo $subject
+     * @param string $result
+     * @return string
+     */
+    public function afterGetLogoSrc(Logo $subject, string $result): string
+    {
+        if ($this->moduleState->isActive()) {
+            $result = $this->ulrFormatter->getFormattedUrl($result);
+        }
+
+        return $result;
+    }
+}

@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-/**
- * Copyright © 2022 Studio Raz. All rights reserved.
- * See LICENSE.txt for license details.
- */
--->
+  ~ Copyright © 2022 Studio Raz. All rights reserved.
+  ~ See LICENCE file for license details.
+  -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
     <menu>
         <add id="SR_Cloudflare::srcloudflare"
@@ -17,7 +15,7 @@
         <add id="SR_Cloudflare::srcloudflare_settings"
              title="Settings"
              sortOrder="1000"
-             module="Cloudflare"
+             module="SR_Cloudflare"
              parent="SR_Cloudflare::srcloudflare"
              action="adminhtml/system_config/edit/section/srcloudflare/"
              resource="SR_Cloudflare::srcloudflare_settings"/>

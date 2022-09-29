@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright © 2022 Studio Raz. All rights reserved.
+  ~ See LICENCE file for license details.
+  -->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <virtualType name="SrCloudflareConfig" type="SR\Cloudflare\Config\Config" />
+
+
+<!-- start: Extension Activity STATE -->
+<!--    <type name="SR\Cloudflare\Config\ModuleState">-->
+<!--        <arguments>-->
+<!--            <argument name="forceActive" xsi:type="boolean">true</argument>-->
+<!--        </arguments>-->
+<!--    </type>-->
+    <virtualType name="SrCloudflareModuleState" type="SR\Cloudflare\Config\ModuleState" />
+<!-- end: Extension Activity STATE -->
+</config>

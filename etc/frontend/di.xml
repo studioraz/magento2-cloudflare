@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright © 2022 Studio Raz. All rights reserved.
+  ~ See LICENCE file for license details.
+  -->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <!-- ========== start: Plugin definitions ========== -->
+    <!-- NOTE: to re-build image src-url into CloudFlare format  -->
+<!--    <type name="Magento\Theme\Block\Html\Header\Logo">-->
+<!--        <plugin name="srcloudflare_theme_header_logo_imgsrc"-->
+<!--                type="SR\Cloudflare\Plugin\Theme\Header\GetLogoSrcPlugin"-->
+<!--                sortOrder="50"-->
+<!--                disabled="false" />-->
+<!--    </type>-->
+    <type name="Magento\Theme\Block\Html\Header\Logo">
+        <plugin name="srcloudflare_theme_header_logo_imgsrc"
+                type="SR\Cloudflare\Plugin\RebuildImageSrcUrlPlugin"
+                sortOrder="50"
+                disabled="false" />
+    </type>
+    <type name="Magento\Cms\Model\Template\Filter">
+        <plugin name="srcloudflare_cms_template_filter_mediadirectory"
+                type="SR\Cloudflare\Plugin\RebuildImageSrcUrlPlugin"
+                sortOrder="50"
+                disabled="false" />
+    </type>
+    <type name="Magento\Widget\Model\Template\Filter">
+        <plugin name="srcloudflare_widget_template_filter_mediadirectory"
+                type="SR\Cloudflare\Plugin\RebuildImageSrcUrlPlugin"
+                sortOrder="50"
+                disabled="false" />
+    </type>
+    <type name="SR\Widgets\Block\Widget\Banners">
+        <plugin name="srcloudflare_srwidgets_widget_banners_getmedia"
+                type="SR\Cloudflare\Plugin\RebuildImageSrcUrlPlugin"
+                sortOrder="50"
+                disabled="false" />
+    </type>
+    <type name="Magento\Catalog\Model\View\Asset\Image">
+        <plugin name="srcloudflare_catalog_view_asset_image_geturl"
+                type="SR\Cloudflare\Plugin\Catalog\Asset\Image\RebuildImageSrcUrlPlugin"
+                sortOrder="50"
+                disabled="false" />
+    </type>
+    <!-- ========== end: Plugin definitions ========== -->
+</config>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright © 2022 Studio Raz. All rights reserved.
+  ~ See LICENCE file for license details.
+  -->
+
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Acl/etc/acl.xsd">
+    <acl>
+        <resources>
+            <resource id="Magento_Backend::admin">
+                <resource id="SR_Base::srbase">
+                    <resource id="SR_Cloudflare::srcloudflare" title="Cloudflare" translate="title" sortOrder="560">
+                        <resource id="SR_Cloudflare::srcloudflare_settings" title="Settings" translate="title" sortOrder="100" />
+                    </resource>
+                </resource>
+            </resource>
+        </resources>
+    </acl>
+</config>

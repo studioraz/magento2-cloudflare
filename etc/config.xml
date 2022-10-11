@@ -8,7 +8,7 @@
         <srcloudflare>
             <general>
                 <active>0</active>
-                <image_quality>100</image_quality>
+                <image_quality>85</image_quality>
             </general>
         </srcloudflare>
     </default>

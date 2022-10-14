@@ -42,5 +42,11 @@
                 sortOrder="50"
                 disabled="false" />
     </type>
+    <type name="Magento\Catalog\Model\Product\Media\Config">
+        <plugin name="srcloudflare_catalog_product_media_config_getmediaurl"
+                type="SR\Cloudflare\Plugin\Catalog\Product\Media\Config\RebuildImageSrcUrlPlugin"
+                sortOrder="50"
+                disabled="false" />
+    </type>
     <!-- ========== end: Plugin definitions ========== -->
 </config>

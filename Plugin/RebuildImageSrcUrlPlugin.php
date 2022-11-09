@@ -68,7 +68,7 @@ class RebuildImageSrcUrlPlugin
 
     /**
      * AFTER Plugin
-     * @see \SR\Widgets\Block\Widget\Banners::getImagesPath::getMedia
+     * @see \SR\Widgets\Block\Widget\Banners::getMedia
      *
      * @param WidgetBlockInterface $subject
      * @param string $result

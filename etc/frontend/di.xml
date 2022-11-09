@@ -48,5 +48,15 @@
                 sortOrder="50"
                 disabled="false" />
     </type>
+
+
+    <!-- start definitions for MirasvitLabel -->
+    <type name="Mirasvit\CatalogLabel\Model\Label\Display">
+        <plugin name="srcloudflare_mst_label_label_display_getimageurl"
+                type="SR\Cloudflare\Plugin\Mirasvit\Asset\BadgeImage\RebuildImageSrcUrlPlugin"
+                sortOrder="50"
+                disabled="false" />
+    </type>
+    <!-- end definitions for MirasvitLabel -->
     <!-- ========== end: Plugin definitions ========== -->
 </config>

@@ -46,6 +46,15 @@
                 disabled="false" />
     </type>
 
+    <!-- plugin to prevent creating files in /pub/media/catalog/product/cache directory, in case SR_Cloudflare is active -->
+    <!-- @see \Magento\Catalog\Model\Product\Image::isCached -->
+    <type name="Magento\Catalog\Model\Product\Image">
+        <plugin name="srcloudflare_catalog_product_image_iscached"
+                type="SR\Cloudflare\Plugin\Catalog\Product\Image\IsCachedPlugin"
+                sortOrder="50"
+                disabled="false" />
+    </type>
+
 
     <!-- start definitions for MirasvitLabel -->
     <type name="Mirasvit\CatalogLabel\Model\Label\Display">

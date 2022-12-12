@@ -22,7 +22,7 @@
 
                 <field id="image_quality" type="text" translate="label comment" sortOrder="200" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Image Quality</label>
-                    <comment><![CDATA[Value unit is percentage. Example: 100.]]></comment>
+                    <comment><![CDATA[Specifies quality for images in JPEG, WebP, and AVIF formats. The quality is in a 1-100 scale, but useful values are between <i>50</i> (low quality, small file size) and <i>90</i> (high quality, large file size). <i>85</i> is the default. When using the PNG format, an explicit quality setting allows use of PNG8 (palette) variant of the format.<br>See <a href="https://developers.cloudflare.com/images/image-resizing/url-format/#quality" target="_blank">Cloudflare documentation</a> for more information.]]></comment>
                 </field>
 
                 <field id="image_fit" type="select" translate="label" sortOrder="220" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">

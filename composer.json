@@ -3,12 +3,12 @@
     "description": "Magento 2 module",
     "type": "magento2-module",
     "prefer-stable": true,
-    "version": "1.1.0",
+    "version": "1.2.1",
     "license": [
         "proprietary"
     ],
     "require": {
-        "php": "~7.4",
+        "php": "~7.4|^8.0",
         "magento/framework": "~103.0",
         "studioraz/magento2-base": "~1.3"
     },

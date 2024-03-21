@@ -106,7 +106,18 @@ class RebuildImageSrcUrlPlugin
             return $helper->getDefaultPlaceholderUrl();
         } else {
             $context = $this->catalogImageAssetContextFactory->create();
-            return $context->getBaseUrl() . $asset->getFilePath();
+            return $context->getBaseUrl() . $this->appendSlashIfNotExists($asset->getFilePath());
         }
+    }
+
+    /**
+     * Append / to an image file if start w/o it. by default Magento has it in DB
+     *
+     * @param $file
+     * @return mixed|string
+     */
+    private function appendSlashIfNotExists($file)
+    {
+        return (substr($file, 0, 1) === "/") ? $file : "/" . $file;
     }
 }

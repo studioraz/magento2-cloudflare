@@ -3,7 +3,7 @@
     "description": "Magento 2 module",
     "type": "magento2-module",
     "prefer-stable": true,
-    "version": "1.2.1",
+    "version": "1.2.2",
     "license": [
         "proprietary"
     ],

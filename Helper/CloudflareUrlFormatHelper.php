@@ -78,15 +78,18 @@ class CloudflareUrlFormatHelper extends AbstractHelper
         }
 
         // NOTE: remove BaseUrl part
-        $url = str_replace($this->_urlBuilder->getBaseUrl(), '', $initUrl);
+        $baseUrl = $this->_urlBuilder->getBaseUrl();
+        $url = str_replace($baseUrl, '', $initUrl);
         $url = '/' . trim($url, '/');
+
+        $baseUrl = rtrim($baseUrl, '/');
 
         $predefined = [];
         if (!empty($extras[self::EXTRA_PARAM_KEY_QUERY_STRING] ?? null)) {
             $predefined = $extras[self::EXTRA_PARAM_KEY_QUERY_STRING];
         }
 
-        return $this->endpointMainPart . $this->getQueryStringParams($predefined) . $url;
+        return $baseUrl . $this->endpointMainPart . $this->getQueryStringParams($predefined) . $url;
     }
 
     /**

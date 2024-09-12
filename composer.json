@@ -3,7 +3,7 @@
     "description": "Magento 2 module",
     "type": "magento2-module",
     "prefer-stable": true,
-    "version": "1.2.2",
+    "version": "1.3.0",
     "license": [
         "proprietary"
     ],
@@ -27,7 +27,7 @@
         {
             "name": "Studio Raz",
             "email": "info@studioraz.co.il",
-            "homepage": "http://www.studio-raz.com",
+            "homepage": "https://www.studio-raz.com",
             "role": "Developer"
         }
     ]

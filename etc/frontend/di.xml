@@ -64,5 +64,14 @@
                 disabled="false" />
     </type>
     <!-- end definitions for MirasvitLabel -->
+
+    <!-- start definitions for AmastyShopBy -->
+    <type name="Amasty\ShopbyBase\Model\OptionSettings\UrlResolver">
+        <plugin name="SR_Cloudflare_AmastyBrandImageUrl"
+                type="SR\Cloudflare\Plugin\Amasty\ShopbyBase\UrlResolverPlugin"
+                sortOrder="50"
+                disabled="false"/>
+    </type>
+    <!-- end definitions for AmastyShopBy -->
     <!-- ========== end: Plugin definitions ========== -->
 </config>

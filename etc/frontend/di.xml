@@ -73,5 +73,12 @@
                 disabled="false"/>
     </type>
     <!-- end definitions for AmastyShopBy -->
+
+    <!-- start definitions for Customy BannerSlider -->
+    <type name="Customy\Bannerslider\Block\SliderItem">
+        <plugin name="SR_Cloudflare_CustomySliderImage"
+                type="SR\Cloudflare\Plugin\Customy\Bannerslider\SliderItemPlugin" />
+    </type>
+    <!-- end definitions for Customy BannerSlider -->
     <!-- ========== end: Plugin definitions ========== -->
 </config>

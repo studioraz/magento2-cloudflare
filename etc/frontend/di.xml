@@ -64,5 +64,11 @@
                 disabled="false" />
     </type>
     <!-- end definitions for MirasvitLabel -->
+
+    <type name="Magento\Framework\Controller\ResultInterface">
+        <plugin name="sr_cloudflare_add_cache_tag_header"
+                type="SR\Cloudflare\Plugin\AddCacheTagHeader"
+                sortOrder="-10"/>
+    </type>
     <!-- ========== end: Plugin definitions ========== -->
 </config>

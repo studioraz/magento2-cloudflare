@@ -11,6 +11,12 @@
                 <image_quality>85</image_quality>
                 <image_fit>none</image_fit>
             </general>
+            <cache>
+                <active>0</active>
+                <debug>0</debug>
+                <api_url>https://api.cloudflare.com/client/v4/zones/%s/purge_cache</api_url>
+                <api_token backend_model="Magento\Config\Model\Config\Backend\Encrypted"/>
+            </cache>
         </srcloudflare>
     </default>
 </config>

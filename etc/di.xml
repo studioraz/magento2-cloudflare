@@ -15,4 +15,69 @@
 <!--    </type>-->
     <virtualType name="SrCloudflareModuleState" type="SR\Cloudflare\Config\ModuleState" />
 <!-- end: Extension Activity STATE -->
+
+    <!-- Config -->
+    <virtualType name="SrCloudflareCacheConfig" type="SR\Cloudflare\Config\CacheConfig"/>
+
+    <!-- Logger -->
+    <virtualType name="SrCloudflareCacheMainLogger" type="SR\Gateway\Model\Logger">
+        <arguments>
+            <argument name="logger" xsi:type="object">SrCloudflareCacheBaseLogger</argument>
+            <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
+        </arguments>
+    </virtualType>
+
+    <virtualType name="SrCloudflareCacheBaseLogger" type="SR\Gateway\Model\Logger\Logger">
+        <arguments>
+            <argument name="name" xsi:type="string">srcloudflarecache</argument>
+            <argument name="handlers" xsi:type="array">
+                <item name="file" xsi:type="object">SrCloudflareCacheLoggerFileHandler</item>
+            </argument>
+        </arguments>
+    </virtualType>
+
+    <virtualType name="SrCloudflareCacheLoggerFileHandler" type="SR\Cloudflare\Model\Logger\Handler\CacheFileHandler">
+        <arguments>
+            <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
+            <argument name="fileName" xsi:type="string">var/log/srcloudflarecache.log</argument>
+        </arguments>
+    </virtualType>
+
+    <!-- REST client -->
+    <virtualType name="SrCloudflareCacheRestClient" type="SR\Gateway\Model\Http\Client\Rest">
+        <arguments>
+            <argument name="logger" xsi:type="object">SrCloudflareCacheMainLogger</argument>
+            <argument name="converter" xsi:type="object">SR\Gateway\Model\Http\Client\Converter\ObjectToArrayRestConverter</argument>
+        </arguments>
+    </virtualType>
+
+    <!-- CloudflareClient -->
+    <type name="SR\Cloudflare\Model\CloudflareClient">
+        <arguments>
+            <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
+            <argument name="restClient" xsi:type="object">SrCloudflareCacheRestClient</argument>
+            <argument name="logger" xsi:type="object">SrCloudflareCacheMainLogger</argument>
+        </arguments>
+    </type>
+
+    <!-- Observer -->
+    <type name="SR\Cloudflare\Observer\PurgeByTags">
+        <arguments>
+            <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
+        </arguments>
+    </type>
+
+    <!-- FlushAllCacheObserver -->
+    <type name="SR\Cloudflare\Observer\FlushAllCacheObserver">
+        <arguments>
+            <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
+        </arguments>
+    </type>
+
+    <!-- Plugin -->
+    <type name="SR\Cloudflare\Plugin\AddCacheTagHeader">
+        <arguments>
+            <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
+        </arguments>
+    </type>
 </config>

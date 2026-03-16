@@ -19,6 +19,27 @@
     <!-- Config -->
     <virtualType name="SrCloudflareCacheConfig" type="SR\Cloudflare\Config\CacheConfig"/>
 
+    <!-- FrontController Plugin -->
+    <type name="SR\Cloudflare\Plugin\App\FrontController\CloudflarePlugin">
+        <arguments>
+            <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
+        </arguments>
+    </type>
+
+    <!-- Controller/Result Plugin -->
+    <type name="SR\Cloudflare\Plugin\Controller\Result\CloudflarePlugin">
+        <arguments>
+            <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
+        </arguments>
+    </type>
+
+    <!-- Layout Plugin -->
+    <type name="SR\Cloudflare\Plugin\Layout\LayoutPlugin">
+        <arguments>
+            <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
+        </arguments>
+    </type>
+
     <!-- Logger -->
     <virtualType name="SrCloudflareCacheMainLogger" type="SR\Gateway\Model\Logger">
         <arguments>

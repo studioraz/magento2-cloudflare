@@ -33,17 +33,17 @@
             </group>
 
             <group id="cache" translate="label" type="text" sortOrder="10"
-                   showInDefault="1" showInWebsite="0" showInStore="0">
-                <label>Cloudflare Cache</label>
+                   showInDefault="1" showInWebsite="1" showInStore="0">
+                <label>Cache (FPC)</label>
 
                 <field id="active" translate="label" sortOrder="10" type="select"
-                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
                     <label>Enabled</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                 </field>
 
                 <field id="zone_id" translate="label comment" sortOrder="20" type="text"
-                       showInDefault="1" showInWebsite="0" showInStore="0">
+                       showInDefault="1" showInWebsite="1" showInStore="0">
                     <label>Zone ID</label>
                     <comment><![CDATA[Cloudflare Zone ID from the dashboard Overview page.]]></comment>
                     <validate>required-entry</validate>
@@ -52,8 +52,18 @@
                     </depends>
                 </field>
 
+                <field id="account_id" translate="label comment" sortOrder="25" type="text"
+                       showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Account ID</label>
+                    <comment><![CDATA[Cloudflare Account ID from the dashboard Overview page.]]></comment>
+                    <validate>required-entry</validate>
+                    <depends>
+                        <field id="active">1</field>
+                    </depends>
+                </field>
+
                 <field id="api_token" translate="label comment" sortOrder="30" type="obscure"
-                       showInDefault="1" showInWebsite="0" showInStore="0">
+                       showInDefault="1" showInWebsite="1" showInStore="0">
                     <label>API Token</label>
                     <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
                     <comment><![CDATA[Cloudflare API Token with <strong>Zone.Cache Purge</strong> permission.]]></comment>
@@ -63,10 +73,13 @@
                 </field>
 
                 <field id="debug" translate="label comment" sortOrder="100" type="select"
-                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
                     <label>Debug</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                     <comment><![CDATA[When enabled, API requests and responses are written to <code>var/log/srcloudflarecache.log</code>]]></comment>
+                    <depends>
+                        <field id="active">1</field>
+                    </depends>
                 </field>
             </group>
         </section>

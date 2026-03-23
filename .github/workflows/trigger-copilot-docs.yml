@@ -1,0 +1,100 @@
+name: Trigger Copilot Documentation
+
+on:
+  push:
+    branches:
+      - main
+      - feature/SRP-1362-automatic-documentation
+    paths:
+      - '**/*.php'
+      - '**/*.xml'
+      - '**/*.phtml'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect merge context
+        id: context
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commit = context.payload.head_commit;
+            const sha = context.sha;
+            const shortSha = sha.substring(0, 7);
+            const date = new Date().toISOString().split('T')[0];
+
+            const tags = await github.rest.repos.listTags({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 5,
+            });
+            const latestTag = tags.data.length > 0 ? tags.data[0].name : null;
+
+            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: sha,
+            });
+            const pr = prs.data.find(p => p.merged_at !== null);
+
+            const prInfo = pr
+              ? `- **PR:** [#${pr.number} — ${pr.title}](${pr.html_url})`
+              : `- **Commit:** [${shortSha}](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${sha})`;
+
+            const diffUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${sha}`;
+            const commitMessage = commit.message.split('\n')[0];
+
+            core.setOutput('sha', sha);
+            core.setOutput('short_sha', shortSha);
+            core.setOutput('date', date);
+            core.setOutput('latest_tag', latestTag || '');
+            core.setOutput('pr_info', prInfo);
+            core.setOutput('commit_message', commitMessage);
+            core.setOutput('diff_url', diffUrl);
+
+      - name: Get changed files and diff
+        id: diff
+        run: |
+          CHANGED=$(git diff HEAD~1 HEAD --name-only -- '*.php' '*.xml' | head -40)
+          DIFF=$(git diff HEAD~1 HEAD -- '*.php' \
+            | grep -E '^(\+\+\+|---|@@|[+-].*(public |protected |class |interface |function ))' \
+            | head -120)
+
+          echo "$CHANGED" > /tmp/changed_files.txt
+          echo "$DIFF" > /tmp/diff_summary.txt
+
+      - name: Build issue body
+        run: |
+          CHANGED=$(cat /tmp/changed_files.txt)
+          DIFF=$(cat /tmp/diff_summary.txt)
+
+          cat > /tmp/issue_body.md << 'BODYEOF'
+          ## Merge Information
+          BODYEOF
+
+          cat >> /tmp/issue_body.md << BODYEOF
+          - **Date:** ${{ steps.context.outputs.date }}
+          - **Diff:** ${{ steps.context.outputs.diff_url }}
+          ${{ steps.context.outputs.pr_info }}
+          ${{ steps.context.outputs.latest_tag != '' && format('- **Current latest tag:** `{0}`', steps.context.outputs.latest_tag) || '' }}
+
+          ## Commit Message
+          ${{ steps.context.outputs.commit_message }}
+
+          ## Changed Files
+          \`\`\`
+          BODYEOF
+
+          echo "$CHANGED" >> /tmp/issue_body.md
+
+          cat >> /tmp/issue_body.md << 'BODYEOF'

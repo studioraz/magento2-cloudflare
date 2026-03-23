@@ -1,0 +1,140 @@
+# .github/workflows/init-wiki-docs.yml
+name: Initialize Wiki Documentation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  init:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect repository context
+        run: |
+          # Full file tree (PHP, XML, phtml only)
+          find . -type f \( -name "*.php" -o -name "*.xml" -o -name "*.phtml" \) \
+            | grep -v vendor \
+            | grep -v '.git' \
+            | sort > /tmp/file_tree.txt
+
+          # composer.json
+          cat composer.json > /tmp/composer.txt 2>/dev/null || echo "No composer.json" > /tmp/composer.txt
+
+          # README if exists
+          cat README.md > /tmp/readme.txt 2>/dev/null || echo "No README.md" > /tmp/readme.txt
+
+          # All public PHP class/interface/method signatures
+          grep -rn --include="*.php" \
+            -E '(^|\s)(class|interface|trait|public function|protected function|const )\s' \
+            --exclude-dir=vendor \
+            | head -200 > /tmp/signatures.txt
+
+          # etc/module.xml
+          find . -path "*/etc/module.xml" | xargs cat 2>/dev/null > /tmp/module_xml.txt || true
+
+          # etc/config.xml and system.xml
+          find . -path "*/etc/config.xml" -o -path "*/etc/adminhtml/system.xml" \
+            | xargs cat 2>/dev/null > /tmp/config_xml.txt || true
+
+      - name: Build issue body
+        run: |
+          cat > /tmp/issue_body.md << 'EOF'
+          ## Task
+
+          This is the **initial documentation generation** request.
+          The `wiki/` folder is empty or does not yet have real content.
+
+          Your job is to read the full repository structure below and generate:
+          - `wiki/Home.md` — complete module documentation for store administrators and developers
+          - `wiki/Release-Notes.md` — placeholder with a single first entry based on the current state
+
+          Follow the instructions in `.github/instructions/wiki-docs.instructions.md`.
+
+          ---
+
+          ## composer.json
+  ```json
+  EOF
+  cat /tmp/composer.txt >> /tmp/issue_body.md
+  cat >> /tmp/issue_body.md << 'EOF'
+  ```
+
+  ---
+
+  ## README.md
+  EOF
+  cat /tmp/readme.txt >> /tmp/issue_body.md
+
+  cat >> /tmp/issue_body.md << 'EOF'
+
+  ---
+
+  ## Module XML
+  ```xml
+  EOF
+  cat /tmp/module_xml.txt >> /tmp/issue_body.md
+  cat >> /tmp/issue_body.md << 'EOF'
+  ```
+
+  ---
+
+  ## Configuration XML (config.xml + system.xml)
+  ```xml
+  EOF
+  cat /tmp/config_xml.txt >> /tmp/issue_body.md
+  cat >> /tmp/issue_body.md << 'EOF'
+  ```
+
+  ---
+
+  ## Full File Tree
+  ```
+  EOF
+  cat /tmp/file_tree.txt >> /tmp/issue_body.md
+  cat >> /tmp/issue_body.md << 'EOF'
+  ```
+
+  ---
+
+  ## Public PHP Signatures
+  ```php
+  EOF
+  cat /tmp/signatures.txt >> /tmp/issue_body.md
+  cat >> /tmp/issue_body.md << 'EOF'
+  ```
+
+  ---
+
+## Acceptance Criteria
+- [ ] `wiki/Home.md` created with full module documentation
+  - [ ] `wiki/Home.md` includes: Overview, Features, Requirements, Installation, Configuration table, Architecture
+- [ ] `wiki/Release-Notes.md` created with initial entry
+  - [ ] Written in plain language understandable by store administrators
+  - [ ] No source files modified
+  EOF
+
+- name: Create initialization issue for Copilot
+  uses: actions/github-script@v7
+  with:
+    script: |
+      const fs = require('fs');
+      const body = fs.readFileSync('/tmp/issue_body.md', 'utf8').trim();
+
+      const issue = await github.rest.issues.create({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        title: '📝 docs: generate initial wiki documentation',
+        body: body,
+        labels: ['documentation'],
+        assignees: ['copilot'],
+      });
+
+      console.log(`Issue #${issue.data.number}: ${issue.data.html_url}`);

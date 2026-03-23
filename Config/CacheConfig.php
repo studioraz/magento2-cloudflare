@@ -110,7 +110,13 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
 
     public function getWorkerHfpTtl(): int
     {
-        return (int) ($this->getValue('hfp_ttl', self::WORKER_PATH_GROUP) ?: 120);
+        $value = $this->getValue('hfp_ttl', self::WORKER_PATH_GROUP);
+
+        if ($value !== null && $value !== '') {
+            return (int) $value;
+        }
+
+        return 120;
     }
 
     public function getWorkerAdminPath(): string

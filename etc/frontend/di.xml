@@ -69,6 +69,21 @@
         <plugin name="sr_cloudflare_add_cache_tag_header"
                 type="SR\Cloudflare\Plugin\AddCacheTagHeader"
                 sortOrder="-10"/>
+        <plugin name="sr_cloudflare_result_cloudflare_plugin"
+                type="SR\Cloudflare\Plugin\Controller\Result\CloudflarePlugin"
+                sortOrder="1"/>
+    </type>
+
+    <type name="Magento\Framework\App\FrontControllerInterface">
+        <plugin name="sr_cloudflare_frontcontroller_plugin"
+                type="SR\Cloudflare\Plugin\App\FrontController\CloudflarePlugin"
+                sortOrder="1"/>
+    </type>
+
+    <type name="Magento\Framework\View\Layout">
+        <plugin name="sr_cloudflare_layout_plugin"
+                type="SR\Cloudflare\Plugin\Layout\LayoutPlugin"
+                sortOrder="1"/>
     </type>
     <!-- ========== end: Plugin definitions ========== -->
 </config>

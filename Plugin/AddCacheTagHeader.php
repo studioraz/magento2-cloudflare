@@ -34,6 +34,10 @@ class AddCacheTagHeader
             return $result;
         }
 
+        if (!$this->config->isCloudflareApplication()) {
+            return $result;
+        }
+
         $magentoTags = $response->getHeader('X-Magento-Tags');
 
         if (!$magentoTags) {

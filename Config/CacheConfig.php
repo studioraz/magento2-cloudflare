@@ -4,13 +4,22 @@ declare(strict_types=1);
 
 namespace SR\Cloudflare\Config;
 
+use Magento\Framework\App\Cache\StateInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\PageCache\Model\Cache\Type;
+use Magento\PageCache\Model\Config as PageCacheConfig;
 use Magento\Store\Model\StoreManagerInterface;
 
 class CacheConfig extends \SR\Gateway\Model\Config\Config
 {
     public const EXT_ALIAS = 'srcloudflare';
     public const DEFAULT_PATH_GROUP = 'cache';
+    public const WORKER_PATH_GROUP = 'worker';
+
+    /**
+     * Cloudflare caching application type for system/full_page_cache/caching_application
+     */
+    public const CLOUDFLARE = 3;
 
     private const KEY_ZONE_ID = 'zone_id';
     private const KEY_API_TOKEN = 'api_token';
@@ -21,9 +30,26 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
     public function __construct(
         ScopeConfigInterface $scopeConfig,
         private readonly StoreManagerInterface $storeManager,
+        private readonly StateInterface $cacheState,
         string $pathPattern = self::EXT_ALIAS . '/%s/%s'
     ) {
         parent::__construct($scopeConfig, $pathPattern);
+    }
+
+    /**
+     * Check if Cloudflare is selected as the global caching application
+     */
+    public function isCloudflareApplication(): bool
+    {
+        return (int) $this->scopeConfig->getValue(PageCacheConfig::XML_PAGECACHE_TYPE) === self::CLOUDFLARE;
+    }
+
+    /**
+     * Check if full_page_cache type is enabled in Cache Management
+     */
+    public function isPageCacheEnabled(): bool
+    {
+        return $this->cacheState->isEnabled(Type::TYPE_IDENTIFIER);
     }
 
     public function isActive(): bool
@@ -53,7 +79,8 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
 
     public function isConfigured(): bool
     {
-        return $this->isActive()
+        return $this->isCloudflareApplication()
+            && $this->isActive()
             && !empty($this->getZoneId())
             && !empty($this->getApiToken());
     }
@@ -61,6 +88,51 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
     public function getResolvedApiUrl(): string
     {
         return sprintf((string) $this->getApiUrl(), (string) $this->getZoneId());
+    }
+
+    // ─── Worker configuration getters (srcloudflare/worker/*) ───
+
+    public function getWorkerDebug(): bool
+    {
+        return (bool) $this->getValue(self::KEY_CONFIG_DEBUG, self::WORKER_PATH_GROUP);
+    }
+
+    public function getWorkerTtl(): int
+    {
+        $override = $this->getValue('default_ttl', self::WORKER_PATH_GROUP);
+
+        if ($override !== null && $override !== '') {
+            return (int) $override;
+        }
+
+        $globalTtl = $this->scopeConfig->getValue(PageCacheConfig::XML_PAGECACHE_TTL);
+
+        if ($globalTtl === null || $globalTtl === '') {
+            return 86400;
+        }
+
+        return (int) $globalTtl;
+    }
+
+    public function getWorkerHfpTtl(): int
+    {
+        $value = $this->getValue('hfp_ttl', self::WORKER_PATH_GROUP);
+
+        if ($value !== null && $value !== '') {
+            return (int) $value;
+        }
+
+        return 120;
+    }
+
+    public function getWorkerAdminPath(): string
+    {
+        return (string) ($this->getValue('admin_path', self::WORKER_PATH_GROUP) ?: 'admin');
+    }
+
+    public function getWorkerBypassPaths(): string
+    {
+        return (string) ($this->getValue('bypass_paths', self::WORKER_PATH_GROUP) ?: '');
     }
 
     /**

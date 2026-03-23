@@ -33,7 +33,6 @@ jobs:
             const shortSha = sha.substring(0, 7);
             const date = new Date().toISOString().split('T')[0];
 
-            // Get latest tag for reference
             const tags = await github.rest.repos.listTags({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -41,7 +40,6 @@ jobs:
             });
             const latestTag = tags.data.length > 0 ? tags.data[0].name : null;
 
-            // Get the merged PR if this was a PR merge
             const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -51,23 +49,22 @@ jobs:
 
             const prInfo = pr
               ? `- **PR:** [#${pr.number} — ${pr.title}](${pr.html_url})`
-              : `- **Commit:** [\`${shortSha}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${sha})`;
+              : `- **Commit:** [${shortSha}](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${sha})`;
+
+            const diffUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${sha}`;
+            const commitMessage = commit.message.split('\n')[0];
 
             core.setOutput('sha', sha);
             core.setOutput('short_sha', shortSha);
             core.setOutput('date', date);
             core.setOutput('latest_tag', latestTag || '');
             core.setOutput('pr_info', prInfo);
-            core.setOutput('commit_message', commit.message.split('\n')[0]);
-            core.setOutput('diff_url',
-              `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${sha}`
-            );
+            core.setOutput('commit_message', commitMessage);
+            core.setOutput('diff_url', diffUrl);
 
       - name: Get changed files and diff
         id: diff
         run: |
-          SHA="${{ steps.context.outputs.sha }}"
-
           CHANGED=$(git diff HEAD~1 HEAD --name-only -- '*.php' '*.xml' | head -40)
           DIFF=$(git diff HEAD~1 HEAD -- '*.php' \
             | grep -E '^(\+\+\+|---|@@|[+-].*(public |protected |class |interface |function ))' \
@@ -76,73 +73,28 @@ jobs:
           echo "$CHANGED" > /tmp/changed_files.txt
           echo "$DIFF" > /tmp/diff_summary.txt
 
-      - name: Create documentation issue for Copilot
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
+      - name: Build issue body
+        run: |
+          CHANGED=$(cat /tmp/changed_files.txt)
+          DIFF=$(cat /tmp/diff_summary.txt)
 
-            const sha = '${{ steps.context.outputs.sha }}';
-            const shortSha = '${{ steps.context.outputs.short_sha }}';
-            const date = '${{ steps.context.outputs.date }}';
-            const latestTag = '${{ steps.context.outputs.latest_tag }}';
-            const prInfo = `${{ steps.context.outputs.pr_info }}`;
-            const commitMessage = '${{ steps.context.outputs.commit_message }}';
-            const diffUrl = '${{ steps.context.outputs.diff_url }}';
+          cat > /tmp/issue_body.md << 'BODYEOF'
+          ## Merge Information
+          BODYEOF
 
-            const changedFiles = fs.readFileSync('/tmp/changed_files.txt', 'utf8').trim();
-            const diffSummary = fs.readFileSync('/tmp/diff_summary.txt', 'utf8').trim();
+          cat >> /tmp/issue_body.md << BODYEOF
+          - **Date:** ${{ steps.context.outputs.date }}
+          - **Diff:** ${{ steps.context.outputs.diff_url }}
+          ${{ steps.context.outputs.pr_info }}
+          ${{ steps.context.outputs.latest_tag != '' && format('- **Current latest tag:** `{0}`', steps.context.outputs.latest_tag) || '' }}
 
-            if (!changedFiles) {
-              console.log('No PHP/XML files changed, skipping documentation issue.');
-              return;
-            }
+          ## Commit Message
+          ${{ steps.context.outputs.commit_message }}
 
-            const body = `
-            ## Merge Information
-            - **Date:** ${date}
-            - **Diff:** ${diffUrl}
-            ${prInfo}
-            ${latestTag ? `- **Current latest tag:** \`${latestTag}\`` : ''}
+          ## Changed Files
+          \`\`\`
+          BODYEOF
 
-            ## Commit Message
-            ${commitMessage}
+          echo "$CHANGED" >> /tmp/issue_body.md
 
-            ## Changed Files
-            \`\`\`
-            ${changedFiles}
-            \`\`\`
-
-            ## Diff Summary
-            \`\`\`diff
-            ${diffSummary}
-            \`\`\`
-
-            ## Your Task
-
-            Follow the instructions in \`.github/instructions/wiki-docs.instructions.md\`.
-
-            1. Analyze the diff and changed files above
-            2. Update \`wiki/Release-Notes.md\` if the changes introduce user-visible improvements or fixes
-            3. Update \`wiki/Home.md\` if module capabilities or configuration changed
-            4. If \`wiki/Home.md\` does not exist yet — create it from scratch based on the module structure
-            5. If \`wiki/Release-Notes.md\` does not exist yet — create it from scratch
-            6. Open a pull request with your changes
-            7. Do NOT modify any PHP, XML, or other source files
-
-            ## Acceptance Criteria
-            - [ ] \`wiki/\` files reflect the current state of the module after this merge
-            - [ ] All descriptions are written in plain language
-            - [ ] No source files modified
-            `.trim();
-
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `📝 docs: update wiki after merge — ${commitMessage}`,
-              body: body,
-              labels: ['documentation'],
-              assignees: ['copilot'],
-            });
-
-            console.log(`Issue #${issue.data.number}: ${issue.data.html_url}`);
+          cat >> /tmp/issue_body.md << 'BODYEOF'

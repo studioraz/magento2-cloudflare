@@ -7,9 +7,6 @@ on:
       - '**/*.php'
       - '**/*.xml'
       - '**/*.phtml'
-    paths-ignore:
-      - 'wiki/**'
-      - '.github/**'
 
 permissions:
   contents: read

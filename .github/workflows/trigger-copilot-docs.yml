@@ -1,0 +1,135 @@
+name: Trigger Copilot Documentation
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect release context
+        id: context
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.payload.release.tag_name;
+            const releaseUrl = context.payload.release.html_url;
+            const releaseNotes = context.payload.release.body || '';
+            const date = context.payload.release.published_at.split('T')[0];
+
+            const tags = await github.rest.repos.listTags({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 10,
+            });
+
+            const tagNames = tags.data.map(t => t.name);
+            const currentIndex = tagNames.indexOf(tag);
+            const prevTag = currentIndex < tagNames.length - 1
+              ? tagNames[currentIndex + 1]
+              : null;
+
+            const diffUrl = prevTag
+              ? `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${prevTag}...${tag}`
+              : null;
+
+            core.setOutput('tag', tag);
+            core.setOutput('prev_tag', prevTag || '');
+            core.setOutput('release_url', releaseUrl);
+            core.setOutput('release_notes', releaseNotes);
+            core.setOutput('date', date);
+            core.setOutput('diff_url', diffUrl || '');
+
+      - name: Get changed PHP files and diff
+        id: diff
+        run: |
+          TAG="${{ steps.context.outputs.tag }}"
+          PREV="${{ steps.context.outputs.prev_tag }}"
+
+          if [ -n "$PREV" ]; then
+            CHANGED=$(git diff --name-only "$PREV" "$TAG" -- '*.php' '*.xml' | head -40)
+            DIFF=$(git diff "$PREV" "$TAG" -- '*.php' \
+              | grep -E '^(\+\+\+|---|@@|[+-].*(public |protected |class |interface |function ))' \
+              | head -120)
+          else
+            CHANGED=$(git show --name-only "$TAG" -- '*.php' '*.xml' | tail -n +2 | head -40)
+            DIFF="Initial release — no diff available"
+          fi
+
+          echo "$CHANGED" > /tmp/changed_files.txt
+          echo "$DIFF" > /tmp/diff_summary.txt
+
+      - name: Create documentation issue for Copilot
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const tag = '${{ steps.context.outputs.tag }}';
+            const prevTag = '${{ steps.context.outputs.prev_tag }}';
+            const releaseUrl = '${{ steps.context.outputs.release_url }}';
+            const releaseNotes = `${{ steps.context.outputs.release_notes }}`;
+            const date = '${{ steps.context.outputs.date }}';
+            const diffUrl = '${{ steps.context.outputs.diff_url }}';
+
+            const changedFiles = fs.readFileSync('/tmp/changed_files.txt', 'utf8').trim();
+            const diffSummary = fs.readFileSync('/tmp/diff_summary.txt', 'utf8').trim();
+
+            const body = `
+            ## Release Information
+            - **Version:** \`${tag}\`
+            - **Date:** ${date}
+            - **Release URL:** ${releaseUrl}
+            ${diffUrl ? `- **Code diff:** ${diffUrl}` : ''}
+            ${prevTag ? `- **Previous version:** \`${prevTag}\`` : '- **First release**'}
+
+            ## Auto-generated Release Notes
+            ${releaseNotes || '_No release notes body provided._'}
+
+            ## Changed Files
+            \`\`\`
+            ${changedFiles || 'No files changed'}
+            \`\`\`
+
+            ## Diff Summary
+            \`\`\`diff
+            ${diffSummary}
+            \`\`\`
+
+            ## Your Task
+
+            Follow the instructions in \`.github/instructions/wiki-docs.instructions.md\`.
+
+            1. Analyze the diff and changed files above
+            2. Update \`wiki/Release-Notes.md\` — add entry for \`${tag}\` at the top
+            3. Update \`wiki/Home.md\` — only if module capabilities or configuration changed
+            4. Open a pull request with your changes
+            5. Do NOT modify any PHP, XML, or other source files
+
+            ## Acceptance Criteria
+            - [ ] \`wiki/Release-Notes.md\` contains a new entry for \`${tag}\`
+            - [ ] Entry is written in plain language, describes user-visible changes
+            - [ ] \`wiki/Home.md\` updated only if features or configuration changed
+            - [ ] No source files modified
+            `.trim();
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `📝 docs: update wiki for ${tag}`,
+              body: body,
+              labels: ['documentation'],
+              assignees: ['copilot'],
+            });
+
+            console.log(`Issue #${issue.data.number}: ${issue.data.html_url}`);

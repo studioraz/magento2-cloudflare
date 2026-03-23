@@ -2,12 +2,13 @@ name: Trigger Copilot Documentation
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feature/SRP-1362-automatic-documentation
     paths:
       - '**/*.php'
       - '**/*.xml'
       - '**/*.phtml'
-  workflow_dispatch:
 
 permissions:
   contents: read

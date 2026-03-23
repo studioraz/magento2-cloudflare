@@ -1,6 +1,9 @@
 name: Sync wiki/ to GitHub Wiki
 
 on:
+  push:
+    branches:
+      - main
   release:
     types: [published]
 

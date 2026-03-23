@@ -1,0 +1,21 @@
+name: Sync wiki/ to GitHub Wiki
+
+on:
+  push:
+    branches: [main]
+    paths: ['wiki/**']
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push wiki/ folder to GitHub Wiki
+        uses: Andrew-Chen-Wang/github-wiki-action@v4
+        with:
+          path: wiki/
+          commit-message: "sync: ${{ github.event.head_commit.message }}"

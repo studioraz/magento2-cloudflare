@@ -97,7 +97,7 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
         return (bool) $this->getValue(self::KEY_CONFIG_DEBUG, self::WORKER_PATH_GROUP);
     }
 
-    public function getTtl(): int
+    public function getWorkerTtl(): int
     {
         $override = $this->getValue('default_ttl', self::WORKER_PATH_GROUP);
 

@@ -27,7 +27,7 @@ class CloudflarePlugin
     public function afterDispatch(
         FrontControllerInterface $subject,
         ResponseInterface|ResultInterface $result
-    ): ResponseHttp|ResultInterface {
+    ): ResponseHttp|ResultInterface|ResponseInterface {
         if ($this->config->isCloudflareApplication()
             && $this->config->isPageCacheEnabled()
             && $result instanceof ResponseHttp

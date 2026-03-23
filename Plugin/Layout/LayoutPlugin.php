@@ -41,7 +41,7 @@ class LayoutPlugin
             && $this->config->isCloudflareApplication()
             && $this->config->isPageCacheEnabled()
         ) {
-            $this->response->setPublicHeaders($this->pageCacheConfig->getTtl());
+            $this->response->setPublicHeaders($this->config->getWorkerTtl());
         }
     }
 

@@ -2,6 +2,9 @@
 name: Initialize Wiki Documentation
 
 on:
+  push:
+    branches:
+      - feature/SRP-1362-automatic-documentation
   workflow_dispatch:
 
 permissions:

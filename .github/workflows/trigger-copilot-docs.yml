@@ -1,8 +1,12 @@
 name: Trigger Copilot Documentation
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - '**/*.php'
+      - '**/*.xml'
+      - '**/*.phtml'
 
 permissions:
   contents: read
@@ -17,54 +21,55 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Collect release context
+      - name: Collect merge context
         id: context
         uses: actions/github-script@v7
         with:
           script: |
-            const tag = context.payload.release.tag_name;
-            const releaseUrl = context.payload.release.html_url;
-            const releaseNotes = context.payload.release.body || '';
-            const date = context.payload.release.published_at.split('T')[0];
+            const commit = context.payload.head_commit;
+            const sha = context.sha;
+            const shortSha = sha.substring(0, 7);
+            const date = new Date().toISOString().split('T')[0];
 
+            // Get latest tag for reference
             const tags = await github.rest.repos.listTags({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              per_page: 10,
+              per_page: 5,
             });
+            const latestTag = tags.data.length > 0 ? tags.data[0].name : null;
 
-            const tagNames = tags.data.map(t => t.name);
-            const currentIndex = tagNames.indexOf(tag);
-            const prevTag = currentIndex < tagNames.length - 1
-              ? tagNames[currentIndex + 1]
-              : null;
+            // Get the merged PR if this was a PR merge
+            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: sha,
+            });
+            const pr = prs.data.find(p => p.merged_at !== null);
 
-            const diffUrl = prevTag
-              ? `https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${prevTag}...${tag}`
-              : null;
+            const prInfo = pr
+              ? `- **PR:** [#${pr.number} — ${pr.title}](${pr.html_url})`
+              : `- **Commit:** [\`${shortSha}\`](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${sha})`;
 
-            core.setOutput('tag', tag);
-            core.setOutput('prev_tag', prevTag || '');
-            core.setOutput('release_url', releaseUrl);
-            core.setOutput('release_notes', releaseNotes);
+            core.setOutput('sha', sha);
+            core.setOutput('short_sha', shortSha);
             core.setOutput('date', date);
-            core.setOutput('diff_url', diffUrl || '');
+            core.setOutput('latest_tag', latestTag || '');
+            core.setOutput('pr_info', prInfo);
+            core.setOutput('commit_message', commit.message.split('\n')[0]);
+            core.setOutput('diff_url',
+              `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${sha}`
+            );
 
-      - name: Get changed PHP files and diff
+      - name: Get changed files and diff
         id: diff
         run: |
-          TAG="${{ steps.context.outputs.tag }}"
-          PREV="${{ steps.context.outputs.prev_tag }}"
+          SHA="${{ steps.context.outputs.sha }}"
 
-          if [ -n "$PREV" ]; then
-            CHANGED=$(git diff --name-only "$PREV" "$TAG" -- '*.php' '*.xml' | head -40)
-            DIFF=$(git diff "$PREV" "$TAG" -- '*.php' \
-              | grep -E '^(\+\+\+|---|@@|[+-].*(public |protected |class |interface |function ))' \
-              | head -120)
-          else
-            CHANGED=$(git show --name-only "$TAG" -- '*.php' '*.xml' | tail -n +2 | head -40)
-            DIFF="Initial release — no diff available"
-          fi
+          CHANGED=$(git diff HEAD~1 HEAD --name-only -- '*.php' '*.xml' | head -40)
+          DIFF=$(git diff HEAD~1 HEAD -- '*.php' \
+            | grep -E '^(\+\+\+|---|@@|[+-].*(public |protected |class |interface |function ))' \
+            | head -120)
 
           echo "$CHANGED" > /tmp/changed_files.txt
           echo "$DIFF" > /tmp/diff_summary.txt
@@ -75,30 +80,35 @@ jobs:
           script: |
             const fs = require('fs');
 
-            const tag = '${{ steps.context.outputs.tag }}';
-            const prevTag = '${{ steps.context.outputs.prev_tag }}';
-            const releaseUrl = '${{ steps.context.outputs.release_url }}';
-            const releaseNotes = `${{ steps.context.outputs.release_notes }}`;
+            const sha = '${{ steps.context.outputs.sha }}';
+            const shortSha = '${{ steps.context.outputs.short_sha }}';
             const date = '${{ steps.context.outputs.date }}';
+            const latestTag = '${{ steps.context.outputs.latest_tag }}';
+            const prInfo = `${{ steps.context.outputs.pr_info }}`;
+            const commitMessage = '${{ steps.context.outputs.commit_message }}';
             const diffUrl = '${{ steps.context.outputs.diff_url }}';
 
             const changedFiles = fs.readFileSync('/tmp/changed_files.txt', 'utf8').trim();
             const diffSummary = fs.readFileSync('/tmp/diff_summary.txt', 'utf8').trim();
 
-            const body = `
-            ## Release Information
-            - **Version:** \`${tag}\`
-            - **Date:** ${date}
-            - **Release URL:** ${releaseUrl}
-            ${diffUrl ? `- **Code diff:** ${diffUrl}` : ''}
-            ${prevTag ? `- **Previous version:** \`${prevTag}\`` : '- **First release**'}
+            if (!changedFiles) {
+              console.log('No PHP/XML files changed, skipping documentation issue.');
+              return;
+            }
 
-            ## Auto-generated Release Notes
-            ${releaseNotes || '_No release notes body provided._'}
+            const body = `
+            ## Merge Information
+            - **Date:** ${date}
+            - **Diff:** ${diffUrl}
+            ${prInfo}
+            ${latestTag ? `- **Current latest tag:** \`${latestTag}\`` : ''}
+
+            ## Commit Message
+            ${commitMessage}
 
             ## Changed Files
             \`\`\`
-            ${changedFiles || 'No files changed'}
+            ${changedFiles}
             \`\`\`
 
             ## Diff Summary
@@ -111,22 +121,23 @@ jobs:
             Follow the instructions in \`.github/instructions/wiki-docs.instructions.md\`.
 
             1. Analyze the diff and changed files above
-            2. Update \`wiki/Release-Notes.md\` — add entry for \`${tag}\` at the top
-            3. Update \`wiki/Home.md\` — only if module capabilities or configuration changed
-            4. Open a pull request with your changes
-            5. Do NOT modify any PHP, XML, or other source files
+            2. Update \`wiki/Release-Notes.md\` if the changes introduce user-visible improvements or fixes
+            3. Update \`wiki/Home.md\` if module capabilities or configuration changed
+            4. If \`wiki/Home.md\` does not exist yet — create it from scratch based on the module structure
+            5. If \`wiki/Release-Notes.md\` does not exist yet — create it from scratch
+            6. Open a pull request with your changes
+            7. Do NOT modify any PHP, XML, or other source files
 
             ## Acceptance Criteria
-            - [ ] \`wiki/Release-Notes.md\` contains a new entry for \`${tag}\`
-            - [ ] Entry is written in plain language, describes user-visible changes
-            - [ ] \`wiki/Home.md\` updated only if features or configuration changed
+            - [ ] \`wiki/\` files reflect the current state of the module after this merge
+            - [ ] All descriptions are written in plain language
             - [ ] No source files modified
             `.trim();
 
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `📝 docs: update wiki for ${tag}`,
+              title: `📝 docs: update wiki after merge — ${commitMessage}`,
               body: body,
               labels: ['documentation'],
               assignees: ['copilot'],

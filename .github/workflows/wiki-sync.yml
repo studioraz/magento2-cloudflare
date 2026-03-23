@@ -1,9 +1,8 @@
 name: Sync wiki/ to GitHub Wiki
 
 on:
-  push:
-    branches: [main]
-    paths: ['wiki/**']
+  release:
+    types: [published]
 
 permissions:
   contents: write
@@ -18,4 +17,4 @@ jobs:
         uses: Andrew-Chen-Wang/github-wiki-action@v4
         with:
           path: wiki/
-          commit-message: "sync: ${{ github.event.head_commit.message }}"
+          commit-message: "sync: ${{ github.event.release.tag_name }}"

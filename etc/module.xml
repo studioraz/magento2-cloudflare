@@ -7,7 +7,6 @@
     <module name="SR_Cloudflare" setup_version="0.0.1">
         <sequence>
             <module name="SR_Base"/>
-            <module name="Magento_PageCache"/>
             <module name="SR_Gateway"/>
         </sequence>
     </module>

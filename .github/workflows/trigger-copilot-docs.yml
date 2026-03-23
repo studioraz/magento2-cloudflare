@@ -9,6 +9,9 @@ on:
       - '**/*.php'
       - '**/*.xml'
       - '**/*.phtml'
+      - '**/*.js'
+      - '**/*.html'
+      - '**/*.css'
 
 permissions:
   contents: read

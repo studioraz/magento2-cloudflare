@@ -105,7 +105,13 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
             return (int) $override;
         }
 
-        return (int) ($this->scopeConfig->getValue(PageCacheConfig::XML_PAGECACHE_TTL) ?: 86400);
+        $globalTtl = $this->scopeConfig->getValue(PageCacheConfig::XML_PAGECACHE_TTL);
+
+        if ($globalTtl === null || $globalTtl === '') {
+            return 86400;
+        }
+
+        return (int) $globalTtl;
     }
 
     public function getWorkerHfpTtl(): int

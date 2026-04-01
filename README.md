@@ -71,8 +71,8 @@ Developed and maintained by [Studio Raz](https://studioraz.co.il/) and released 
 ### Cloudflare
 
 - A Cloudflare account with your domain proxied through Cloudflare (orange cloud icon enabled)
-- **For FPC:** A [Cloudflare Workers](https://workers.cloudflare.com/) subscription (free tier is sufficient for most stores)
-- **For Image Optimization:** [Image Resizing](https://developers.cloudflare.com/images/image-resizing/) enabled on your zone (requires a Pro, Business, or Enterprise plan)
+- **For FPC:** A [Cloudflare Workers](https://workers.cloudflare.com/) subscription. The free tier allows 100,000 requests/day; the paid plan ($5/month) includes 10 million requests/month.
+- **For Image Optimization:** [Cloudflare Images](https://developers.cloudflare.com/images/) is available on all plans. The free tier includes 5,000 unique transformations/month. For higher volumes, the paid plan costs $0.50 per 1,000 unique transformations.
 - A Cloudflare **API Token** with the **Zone.Cache Purge** permission
 
 ### Magento
@@ -234,7 +234,7 @@ The module automatically purges the Cloudflare cache when content changes in Mag
 
 ## Image Optimization
 
-When image optimization is enabled (**General > Enabled = Yes**), the module rewrites image URLs from their standard Magento paths to the Cloudflare Image Resizing endpoint:
+When image optimization is enabled (**General > Enabled = Yes**), the module rewrites image URLs from their standard Magento paths to the Cloudflare image transformations endpoint:
 
 ```
 https://example.com/cdn-cgi/image/format=auto,metadata=none,quality=85,width=300,height=300/media/catalog/product/image.jpg
@@ -258,7 +258,7 @@ When enabled, Magento's local image cache generation is skipped entirely. Images
 **Images are not being resized / URLs are not rewritten**
 
 - Ensure **General > Enabled** is set to **Yes** for the applicable scope (Store View).
-- Check that your Cloudflare zone has [Image Resizing](https://developers.cloudflare.com/images/image-resizing/) enabled (requires Pro plan or higher).
+- Check that your Cloudflare zone has [Image Transformations](https://developers.cloudflare.com/images/) enabled.
 - Verify the image URL contains `/cdn-cgi/image/` -- if it does not, check whether another plugin or cache is serving a stale URL.
 
 **Cache is not being purged after product/category save**
@@ -282,7 +282,7 @@ When enabled, Magento's local image cache generation is skipped entirely. Images
 
 **Images are served in original format instead of WebP/AVIF**
 
-- Verify that your Cloudflare zone has [Image Resizing](https://developers.cloudflare.com/images/image-resizing/) enabled.
+- Verify that your Cloudflare zone has [Image Transformations](https://developers.cloudflare.com/images/) enabled.
 - Check the browser's `Accept` header includes `image/webp` or `image/avif`.
 - Confirm the image URL uses the `/cdn-cgi/image/format=auto,...` format -- the `format=auto` parameter is what enables format negotiation.
 
@@ -293,7 +293,7 @@ When enabled, Magento's local image cache generation is skipped entirely. Images
 Contributions are welcome! Please feel free to submit issues and pull requests.
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/my-feature`)
+2. Create your feature branch (`git checkout -b (feature/bugfix)/my-feature`)
 3. Commit your changes
 4. Push to the branch (`git push origin feature/my-feature`)
 5. Open a Pull Request

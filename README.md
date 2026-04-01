@@ -174,7 +174,7 @@ The module includes a Cloudflare Worker script (`CFWorker/FPC-worker.js`) that m
 1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com/).
 2. Navigate to **Workers & Pages > Create Application > Create Worker**.
 3. Paste or upload the contents of `CFWorker/FPC-worker.js`.
-4. Set the required **Environment Variables** (see below).
+4. Set up **Environment Variables** if needed (see below).
 5. Add a **Route** that maps your Magento store domain to this worker (e.g., `example.com/*`).
 
 ### Worker Environment Variables

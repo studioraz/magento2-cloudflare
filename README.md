@@ -17,7 +17,6 @@ Use Cloudflare as your Magento 2 full-page cache and image optimization CDN.
 5. [Configuration](#configuration)
     - [General Settings (Image Optimization)](#general-settings-image-optimization)
     - [Cache (FPC) Settings](#cache-fpc-settings)
-    - [Worker Configuration](#worker-configuration)
 6. [How It Works](#how-it-works)
 7. [Deploying the Cloudflare Worker](#deploying-the-cloudflare-worker)
     - [Deployment Steps](#deployment-steps)
@@ -138,7 +137,7 @@ These settings are scoped to **Default / Website** (not Store View).
 | API Token | -- | Cloudflare API Token with **Zone.Cache Purge** permission. Stored encrypted. |
 | Debug | No | When enabled, logs API requests and responses to `var/log/srcloudflarecache.log`. |
 
-
+<img width="1246" height="804" alt="Screenshot 2026-04-01 at 23 53 08" src="https://github.com/user-attachments/assets/f9df2e3f-adbb-43f2-b2b7-c5536f57d79f" />
 
 > **Important:** You must also select Cloudflare as the FPC application. Go to **Stores > Configuration > Advanced > System > Full Page Cache > Caching Application** and select **Cloudflare**.
 
@@ -177,6 +176,34 @@ The module includes a Cloudflare Worker script (`CFWorker/FPC-worker.js`) that m
 3. Paste or upload the contents of `CFWorker/FPC-worker.js`.
 4. Set the required **Environment Variables** (see below).
 5. Add a **Route** that maps your Magento store domain to this worker (e.g., `example.com/*`).
+
+### Worker Environment Variables
+
+Set these in the Cloudflare Worker **Settings > Variables** panel:
+
+| Variable | Type | Description |
+|---|---|---|
+| `DEBUG` | Boolean | Enables diagnostic `X-FPC-*` response headers for debugging. |
+| `DEFAULT_TTL` | Number | Cache TTL in seconds for successful responses. Falls back to Magento's global FPC TTL. |
+| `HFP_TTL` | Number | TTL in seconds for hit-for-pass markers. Default: `120`. |
+| `ADMIN_PATH` | String | Admin URL segment to bypass. Default: `admin`. |
+| `BYPASS_PATHS` | String | Comma-separated additional paths to bypass (e.g. `/api,/rest`). |
+
+The Worker strips 50+ common marketing and tracking query parameters to improve cache hit rates. See the `FILTER_GET` constant in `CFWorker/FPC-worker.js` for the complete list.
+
+**Default bypass paths:** `/customer`, `/checkout`, `/catalogsearch`
+
+### Worker Routes
+
+**Worker Routes** allow you to define URL patterns that should bypass the Cloudflare Worker entirely. By excluding specific URLs from Worker processing, you reduce the number of requests handled by the Worker, which helps lower costs and avoid unnecessary overhead for routes that don't need caching (e.g., admin panels, API endpoints, or checkout pages).
+
+<img width="1722" height="792" alt="Screenshot 2026-04-02 at 00 07 42" src="https://github.com/user-attachments/assets/7cd66c65-baf0-43f4-b710-394460d15ee4" />
+
+> **Note:** The worker itself already has all the basic bypassed urls configuration, in case of this setup it will be as a fallback.
+
+### Magento home page speed
+
+<img width="740" height="340" alt="Screenshot 2026-04-01 at 23 08 31" src="https://github.com/user-attachments/assets/31198bef-d206-452e-a00e-de275caf52eb" />
 
 ---
 
@@ -246,6 +273,7 @@ When enabled, Magento's local image cache generation is skipped entirely. Images
 - Check that `Cache-Tag` headers are present in origin responses (visible in browser DevTools or `curl -I`).
 - Ensure the worker's `ADMIN_PATH` variable matches your actual admin path if it is customized.
 - Check `X-FPC-*` headers in the response (requires `DEBUG=true` in worker env).
+<img width="669" height="432" alt="Screenshot 2026-04-01 at 23 09 18" src="https://github.com/user-attachments/assets/2fec62e5-982a-4ee1-87a3-0c653a7c7cb6" />
 
 **Worker debug headers missing**
 

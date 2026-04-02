@@ -9,7 +9,8 @@
     "require": {
         "php": "~7.4|^8.0",
         "magento/framework": "^103.0",
-        "studioraz/magento2-base": "^1.5"
+        "studioraz/magento2-base": "^1.5",
+        "studioraz/magento2-gateway": "^2.7"
     },
     "autoload": {
         "files": [

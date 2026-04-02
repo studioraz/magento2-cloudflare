@@ -8,8 +8,8 @@
     ],
     "require": {
         "php": "~7.4|^8.0",
-        "magento/framework": "~103.0",
-        "studioraz/magento2-base": "~1.3"
+        "magento/framework": "^103.0",
+        "studioraz/magento2-base": "^1.5"
     },
     "autoload": {
         "files": [

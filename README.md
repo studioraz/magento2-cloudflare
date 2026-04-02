@@ -77,7 +77,7 @@ Developed and maintained by [Studio Raz](https://studioraz.co.il/) and released 
 
 | Requirement | Version |
 |---|---|
-| PHP | `~7.4` or `^8.0` |
+| PHP | `^8.1` |
 | Magento 2 / `magento/framework` | `~103.0` |
 
 ---

@@ -166,9 +166,14 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
         $tags = [];
         foreach ($this->storeManager->getStores() as $store) {
             $host = (string) parse_url($store->getBaseUrl(), PHP_URL_HOST);
+            if ($host === '') {
+                continue;
+            }
             $tags[] = str_replace(['.', '-'], '_', $host);
         }
 
-        return array_values(array_unique($tags));
+        $tags = array_values(array_unique($tags));
+
+        return !empty($tags) ? $tags : [$this->getSiteTag()];
     }
 }

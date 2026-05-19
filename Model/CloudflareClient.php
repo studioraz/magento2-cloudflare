@@ -47,8 +47,8 @@ class CloudflareClient
      */
     public function purgeAll(): void
     {
-        $siteTag = $this->config->getSiteTag();
-        $this->sendPurgeRequest(['tags' => [$siteTag]]);
+        $siteTags = $this->config->getAllSiteTags();
+        $this->sendPurgeRequest(['tags' => $siteTags]);
     }
 
     /**

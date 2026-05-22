@@ -82,6 +82,49 @@
                     </depends>
                 </field>
 
+                <field id="async_purge" translate="label comment" sortOrder="110" type="select"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Async Purge Queue</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Queues Magento cache tag purges and sends them from cron using Cloudflare Pro-safe throttling.]]></comment>
+                    <depends>
+                        <field id="active">1</field>
+                    </depends>
+                </field>
+
+                <field id="purge_batch_size" translate="label comment" sortOrder="120" type="text"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Purge Batch Size</label>
+                    <validate>validate-digits validate-greater-than-zero</validate>
+                    <comment><![CDATA[Maximum Cloudflare purge operations per request. Cloudflare allows 100 for tag, hostname, prefix, and purge-everything requests; larger values are capped to 100.]]></comment>
+                    <depends>
+                        <field id="active">1</field>
+                        <field id="async_purge">1</field>
+                    </depends>
+                </field>
+
+                <field id="purge_max_requests_per_cron" translate="label comment" sortOrder="130" type="text"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Max Purge Requests Per Cron Run</label>
+                    <validate>validate-digits validate-greater-than-zero</validate>
+                    <comment><![CDATA[Default 25 matches the Cloudflare Pro purge bucket size. Cron runs every minute.]]></comment>
+                    <depends>
+                        <field id="active">1</field>
+                        <field id="async_purge">1</field>
+                    </depends>
+                </field>
+
+                <field id="purge_max_attempts" translate="label comment" sortOrder="140" type="text"
+                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                    <label>Max Purge Attempts</label>
+                    <validate>validate-digits validate-greater-than-zero</validate>
+                    <comment><![CDATA[Queue rows are marked failed after this many unsuccessful API attempts.]]></comment>
+                    <depends>
+                        <field id="active">1</field>
+                        <field id="async_purge">1</field>
+                    </depends>
+                </field>
+
 <!--                Future implementation plan to have an option fully managing the Cloudflare Worker configuration from Magento admin, including pushing updates to the worker via API. -->
 <!--                For now, worker configuration is managed separately via Wrangler or Cloudflare dashboard.-->
 <!--                <group id="worker" translate="label comment" type="text" sortOrder="400"-->

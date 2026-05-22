@@ -73,6 +73,14 @@
         </arguments>
     </type>
 
+    <!-- Purge Queue Cron -->
+    <type name="SR\Cloudflare\Cron\ProcessPurgeQueue">
+        <arguments>
+            <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
+            <argument name="logger" xsi:type="object">SrCloudflareCacheMainLogger</argument>
+        </arguments>
+    </type>
+
     <!-- Observer -->
     <type name="SR\Cloudflare\Observer\PurgeByTags">
         <arguments>

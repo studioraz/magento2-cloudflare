@@ -7,15 +7,17 @@ namespace SR\Cloudflare\Observer;
 use Magento\Framework\App\Cache\Tag\Resolver;
 use Magento\Framework\Event\Observer;
 use Magento\Framework\Event\ObserverInterface;
-use SR\Cloudflare\Model\CloudflareClient;
 use SR\Cloudflare\Config\CacheConfig;
+use SR\Cloudflare\Model\CloudflareClient;
+use SR\Cloudflare\Model\PurgeQueue\QueueRepository;
 
 class PurgeByTags implements ObserverInterface
 {
     public function __construct(
         private readonly CloudflareClient $cloudflareClient,
         private readonly Resolver $tagResolver,
-        private readonly CacheConfig $config
+        private readonly CacheConfig $config,
+        private readonly QueueRepository $queueRepository
     ) {
     }
 
@@ -33,8 +35,22 @@ class PurgeByTags implements ObserverInterface
 
         $tags = $this->tagResolver->getTags($object);
 
-        if (!empty($tags)) {
-            $this->cloudflareClient->purgeByTags(array_unique($tags));
+        if (empty($tags)) {
+            return;
+        }
+
+        $tags = array_unique($tags);
+
+        if ($this->config->isAsyncPurgeEnabled()) {
+            if ($this->queueRepository->enqueueTags($tags)) {
+                return;
+            }
+        }
+
+        try {
+            $this->cloudflareClient->purgeByTags($tags);
+        } catch (\Exception) {
+            return;
         }
     }
 }

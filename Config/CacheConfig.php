@@ -24,6 +24,14 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
     private const KEY_ZONE_ID = 'zone_id';
     private const KEY_API_TOKEN = 'api_token';
     private const KEY_API_URL = 'api_url';
+    private const KEY_ASYNC_PURGE = 'async_purge';
+    private const KEY_PURGE_BATCH_SIZE = 'purge_batch_size';
+    private const KEY_PURGE_MAX_REQUESTS_PER_CRON = 'purge_max_requests_per_cron';
+    private const KEY_PURGE_MAX_ATTEMPTS = 'purge_max_attempts';
+
+    public const CLOUDFLARE_MAX_PURGE_OPERATIONS_PER_REQUEST = 100;
+    public const CLOUDFLARE_PRO_PURGE_BUCKET_SIZE = 25;
+    public const DEFAULT_PURGE_MAX_ATTEMPTS = 10;
 
     private ?string $siteTag = null;
 
@@ -88,6 +96,44 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
     public function getResolvedApiUrl(): string
     {
         return sprintf((string) $this->getApiUrl(), (string) $this->getZoneId());
+    }
+
+    public function isAsyncPurgeEnabled(): bool
+    {
+        return (bool) $this->getValue(self::KEY_ASYNC_PURGE, self::DEFAULT_PATH_GROUP);
+    }
+
+    public function getPurgeBatchSize(): int
+    {
+        $value = (int) $this->getValue(self::KEY_PURGE_BATCH_SIZE, self::DEFAULT_PATH_GROUP);
+
+        if ($value <= 0) {
+            return self::CLOUDFLARE_MAX_PURGE_OPERATIONS_PER_REQUEST;
+        }
+
+        return min($value, self::CLOUDFLARE_MAX_PURGE_OPERATIONS_PER_REQUEST);
+    }
+
+    public function getPurgeMaxRequestsPerCronRun(): int
+    {
+        $value = (int) $this->getValue(self::KEY_PURGE_MAX_REQUESTS_PER_CRON, self::DEFAULT_PATH_GROUP);
+
+        if ($value <= 0) {
+            return self::CLOUDFLARE_PRO_PURGE_BUCKET_SIZE;
+        }
+
+        return $value;
+    }
+
+    public function getPurgeMaxAttempts(): int
+    {
+        $value = (int) $this->getValue(self::KEY_PURGE_MAX_ATTEMPTS, self::DEFAULT_PATH_GROUP);
+
+        if ($value <= 0) {
+            return self::DEFAULT_PURGE_MAX_ATTEMPTS;
+        }
+
+        return $value;
     }
 
     // ─── Worker configuration getters (srcloudflare/worker/*) ───

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+    <table name="studioraz_cloudflare_purge_queue" resource="default" engine="innodb" comment="Studio Raz Cloudflare Purge Queue">
+        <column xsi:type="int" name="queue_id" unsigned="true" nullable="false" identity="true" comment="Queue ID"/>
+        <column xsi:type="varchar" name="purge_type" length="16" nullable="false" comment="Purge Type"/>
+        <column xsi:type="text" name="purge_value" nullable="false" comment="Purge Value"/>
+        <column xsi:type="varchar" name="purge_value_hash" length="64" nullable="false" comment="Purge Value Hash"/>
+        <column xsi:type="varchar" name="status" length="16" nullable="false" default="pending" comment="Queue Status"/>
+        <column xsi:type="int" name="attempts" unsigned="true" nullable="false" default="0" comment="Attempt Count"/>
+        <column xsi:type="timestamp" name="next_attempt_at" on_update="false" nullable="true" comment="Next Attempt At"/>
+        <column xsi:type="text" name="last_error" nullable="true" comment="Last Error"/>
+        <column xsi:type="timestamp" name="created_at" on_update="false" nullable="false" default="CURRENT_TIMESTAMP" comment="Created At"/>
+        <column xsi:type="timestamp" name="updated_at" on_update="true" nullable="false" default="CURRENT_TIMESTAMP" comment="Updated At"/>
+
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="queue_id"/>
+        </constraint>
+        <constraint xsi:type="unique" referenceId="SR_CLOUDFLARE_PURGE_QUEUE_TYPE_VALUE_HASH">
+            <column name="purge_type"/>
+            <column name="purge_value_hash"/>
+        </constraint>
+        <index referenceId="SR_CLOUDFLARE_PURGE_QUEUE_STATUS_NEXT_ATTEMPT" indexType="btree">
+            <column name="status"/>
+            <column name="next_attempt_at"/>
+        </index>
+        <index referenceId="SR_CLOUDFLARE_PURGE_QUEUE_TYPE_STATUS_NEXT_ATTEMPT" indexType="btree">
+            <column name="purge_type"/>
+            <column name="status"/>
+            <column name="next_attempt_at"/>
+        </index>
+    </table>
+</schema>

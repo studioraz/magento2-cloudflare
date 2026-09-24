@@ -34,26 +34,39 @@ class AddCacheTagHeader
             return $result;
         }
 
+        $this->addCacheTagHeader($response);
+
+        return $result;
+    }
+
+    /**
+     * Include tags from direct HTTP responses and tags added after result rendering.
+     */
+    public function beforeSendResponse(Http $subject): void
+    {
+        $this->addCacheTagHeader($subject);
+    }
+
+    private function addCacheTagHeader(Http $response): void
+    {
         if (!$this->config->isCloudflareApplication()) {
-            return $result;
+            return;
         }
 
         $magentoTags = $response->getHeader('X-Magento-Tags');
 
         if (!$magentoTags) {
-            return $result;
+            return;
         }
 
         $value = is_object($magentoTags) ? $magentoTags->getFieldValue() : (string) $magentoTags;
 
         if ($value === '') {
-            return $result;
+            return;
         }
 
         $tags = explode(',', $value);
         array_unshift($tags, $this->config->getSiteTag());
-        $response->setHeader('Cache-Tag', implode(',', $tags));
-
-        return $result;
+        $response->setHeader('Cache-Tag', implode(',', $tags), true);
     }
 }

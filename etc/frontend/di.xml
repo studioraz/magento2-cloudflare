@@ -74,6 +74,12 @@
                 sortOrder="1"/>
     </type>
 
+    <type name="Magento\Framework\App\Response\Http">
+        <plugin name="sr_cloudflare_response_cache_tag_header"
+                type="SR\Cloudflare\Plugin\AddCacheTagHeader"
+                sortOrder="100"/>
+    </type>
+
     <type name="Magento\Framework\App\FrontControllerInterface">
         <plugin name="sr_cloudflare_frontcontroller_plugin"
                 type="SR\Cloudflare\Plugin\App\FrontController\CloudflarePlugin"

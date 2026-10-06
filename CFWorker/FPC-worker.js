@@ -1,27 +1,20 @@
 /**
- * Cloudflare FPC Worker — Exact Varnish Mirror
+ * Cloudflare FPC Worker
  *
- * Replicates Magento 2 Varnish VCL behavior (varnish7.vcl) using CF CDN cache.
+ * Applies Magento 2 Varnish cacheability rules using the Cloudflare Cache API.
  * No R2, no KV. Purge handled by SR_CloudflareCache PHP module via CF API.
  *
  * Caching strategy:
- *   fetch() with cacheEverything + cacheTtlByStatus — forces CDN caching even when
- *   origin sends Set-Cookie (Magento always sends PHPSESSID/form_key). CF strips
- *   Set-Cookie from the cached copy automatically. Cache-Tag headers are indexed
- *   through the CDN pipeline, enabling purge-by-tag via SR_CloudflareCache module.
- *   We do NOT use cache.put() for cacheable responses because it overwrites the
- *   fetch()-cached entry and destroys CF's Cache-Tag index.
- *
- * Cache lookup strategy:
- *   Instead of caches.default.match() (Cache API), we rely on cf-cache-status
- *   returned by fetch(). The Cache API and fetch() with cf.cacheKey can have
- *   key mismatches, causing cache.match() to always MISS even when the CDN
- *   has the entry. fetch() + cf-cache-status is the authoritative source.
+ *   Read and write the same explicit URL key through caches.default. Fetch origin
+ *   without CDN caching and validate its response before storing HTML. This avoids
+ *   caching login/logout transitions and does not require Enterprise cf.cacheKey.
+ *   Cache-Tag is preserved/rebuilt on the stored copy for purge-by-tag. Cache API
+ *   storage is local to each Cloudflare data center and does not use Tiered Cache.
  *
  * VCL phase mapping:
  *   vcl_recv            → vclRecv()
  *   vcl_hash            → vclHash()
- *   vcl_hit             → cf-cache-status === 'HIT'
+ *   vcl_hit             → caches.default.match()
  *   vcl_backend_response → vclBackendResponse()
  *   vcl_deliver          → vclDeliver()
  */
@@ -51,6 +44,10 @@ const FILTER_GET = [
 // Bypass path segments (mirrors VCL vcl_recv pass rules)
 const STATIC_BYPASS = ['/customer', '/checkout', '/catalogsearch'];
 
+// Keep new entries separate from HTML cached by the previous fetch() strategy.
+const CACHE_KEY_VERSION = '2';
+const CACHE_KEY_PARAMS = ['__fpc', '__vary', '__ssl', '__gql_cache_id', '__gql_auth', '__gql_store', '__gql_currency'];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main entry point (ES Module format)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,7 +60,7 @@ export default {
         // --- vcl_recv ---
         const recv = vclRecv(request, config);
         if (recv.action === 'pass') {
-            const resp = await fetch(request, { cf: { cacheTtl: 0 } });
+            const resp = clearLogoutVary(request, await fetchOrigin(request));
             return vclDeliver(resp, 'UNCACHEABLE', config, request, {
                 reason: 'pass', ttl: null, cacheKey: null,
                 cfStatus: null, startTime,
@@ -73,71 +70,55 @@ export default {
         // --- vcl_hash ---
         const cacheKey = vclHash(recv.request);
 
-        // --- Fetch via CDN cache ---
-        // fetch() with cacheEverything stores/retrieves from CF's zone cache.
-        // cf-cache-status on the response tells us HIT vs MISS — no separate
-        // cache.match() needed (Cache API and fetch() with cf.cacheKey can
-        // disagree on cache key format, causing false MISSes).
-        const response = await fetch(recv.request, {
-            cf: {
-                cacheKey: cacheKey.url,
-                cacheEverything: true,
-                cacheTtlByStatus: {
-                    '200-299': config.defaultTtl,
-                    '404': 60,
-                    '500-599': 0,
-                },
-            },
-        });
-
-        const cfStatus = response.headers.get('cf-cache-status');
-
         // --- vcl_hit ---
-        if (cfStatus === 'HIT') {
+        const cached = await caches.default.match(cacheKey);
+        if (cached) {
             // Hit-for-pass marker — known uncacheable URL, fetch from origin
-            if (response.headers.get('X-FPC-HFP') === '1') {
-                const passResp = await fetch(recv.request, { cf: { cacheTtl: 0 } });
+            if (cached.headers.get('X-FPC-HFP') === '1') {
+                const passResp = await fetchOrigin(recv.request);
                 return vclDeliver(passResp, 'UNCACHEABLE', config, request, {
                     reason: 'hit-for-pass', ttl: null, cacheKey: cacheKey.url,
-                    cfStatus, startTime,
+                    cfStatus: 'CACHE_API_HIT', startTime,
                 });
             }
-            return vclDeliver(response, 'HIT', config, request, {
+            return vclDeliver(cached, 'HIT', config, request, {
                 reason: 'hit', ttl: null, cacheKey: cacheKey.url,
-                cfStatus, startTime,
+                cfStatus: 'CACHE_API_HIT', startTime,
             });
         }
 
-        // --- vcl_backend_response (MISS / EXPIRED / DYNAMIC) ---
+        // --- vcl_backend_response ---
+        // Never let fetch() store HTML before cacheability/vary checks have run.
+        const response = await fetchOrigin(recv.request);
         const backend = vclBackendResponse(recv.request, response, config);
 
         if (backend.cacheable) {
-            // CDN cached this via cacheTtlByStatus — Cache-Tag index preserved
-            // for purge-by-tag. Do NOT use cache.put() here.
+            // HEAD has no body and must not populate the GET cache entry.
+            if (request.method === 'GET') {
+                ctx.waitUntil(caches.default.put(
+                    cacheKey,
+                    buildCacheResponse(response, backend.ttl, request)
+                ));
+            }
             return vclDeliver(response, 'MISS', config, request, {
                 reason: backend.reason, ttl: backend.ttl, cacheKey: cacheKey.url,
-                cfStatus, startTime,
+                cfStatus: 'CACHE_API_MISS', startTime,
             });
         }
 
-        // Uncacheable — cacheTtlByStatus may have force-cached a private response.
-        // Overwrite the bad CDN entry with a hit-for-pass marker via Cache API.
-        // cache.put() writes to the same zone cache that fetch() reads, so the
-        // next fetch() gets the marker (cf-cache-status: HIT + X-FPC-HFP: 1)
-        // instead of the stale private response. This intentionally destroys
-        // the Cache-Tag index for this entry — uncacheable responses have no
-        // tags to preserve.
+        // Store only a bodyless bypass marker; uncacheable HTML is never stored.
+        // Vary transitions have ttl=0 so the next request can use its new context.
         if (backend.ttl > 0) {
             ctx.waitUntil(
                 caches.default.put(
-                    new Request(cacheKey.url),
-                    buildHitForPassMarker(config)
+                    cacheKey,
+                    buildHitForPassMarker(config, request)
                 )
             );
         }
         return vclDeliver(response, 'UNCACHEABLE', config, request, {
             reason: backend.reason, ttl: backend.ttl, cacheKey: cacheKey.url,
-            cfStatus, startTime,
+            cfStatus: 'CACHE_API_MISS', startTime,
         });
     },
 };
@@ -222,6 +203,7 @@ function shouldBypassPath(pathname, config) {
 function vclHash(request) {
     const url = new URL(request.url);
     const isGraphQL = url.pathname.includes('/graphql');
+    url.searchParams.set('__fpc', CACHE_KEY_VERSION);
 
     // X-Magento-Vary cookie → hash_data (VCL line 110-112)
     if (!isGraphQL || !request.headers.get('X-Magento-Cache-Id')) {
@@ -267,30 +249,32 @@ function vclBackendResponse(request, response, config) {
     }
 
     // 2. Cache-Control: private → uncacheable (VCL line 161)
-    if (cc.includes('private')) {
+    if (/(?:^|,)\s*private(?:\s*=|\s*,|\s*$)/i.test(cc)) {
         return { cacheable: false, ttl: config.hfpTtl, reason: 'private' };
     }
 
     // 3. Parse TTL
     const ttl = parseTtl(cc, config.defaultTtl);
 
-    // 4. Transitional X-Magento-Vary: request has no cookie but response sets one (VCL lines 175-180)
+    // 4. Never store HTML under a context that the response changes or clears.
     const url = new URL(request.url);
     if (!url.pathname.includes('/graphql') || !request.headers.get('X-Magento-Cache-Id')) {
-        const requestHasVary = (request.headers.get('Cookie') || '').includes('X-Magento-Vary=');
-        const setCookie = response.headers.get('Set-Cookie') || '';
-        const responseSetsVary = setCookie.includes('X-Magento-Vary=');
-        if (!requestHasVary && responseSetsVary) {
+        const requestVary = extractCookieValue(request.headers.get('Cookie'), 'X-Magento-Vary') || '';
+        const varyCookie = getSetCookieHeaders(response.headers)
+            .find(value => value.startsWith('X-Magento-Vary='));
+        const responseVary = varyCookie
+            ? extractCookieValue(varyCookie, 'X-Magento-Vary') || ''
+            : requestVary;
+        if (responseVary !== requestVary
+            || (varyCookie && /(?:^|;)\s*max-age\s*=\s*0(?:;|$)/i.test(varyCookie))) {
             return { cacheable: false, ttl: 0, reason: 'transitional-vary' };
         }
     }
 
-    // 5. no-cache, no-store, must-revalidate, max-age=0, Surrogate-control: no-store, Vary: *
-    //    (VCL lines 185-193 + Magento's standard non-cacheable header set)
-    const hasNoCacheDirective = cc.includes('no-cache') || cc.includes('no-store')
-        || cc.includes('must-revalidate') || cc.includes('max-age=0');
+    // 5. must-revalidate alone permits caching until the response becomes stale.
+    const hasNoCacheDirective = /(?:^|,)\s*(?:no-cache|no-store)(?:\s*=|\s*,|\s*$)/i.test(cc);
     if (ttl <= 0
-        || sc.includes('no-store')
+        || /(?:^|,)\s*no-store(?:\s*,|\s*$)/i.test(sc)
         || (!response.headers.get('Surrogate-Control') && hasNoCacheDirective)
         || response.headers.get('Vary') === '*') {
         return { cacheable: false, ttl: config.hfpTtl, reason: 'no-store' };
@@ -307,9 +291,9 @@ function vclBackendResponse(request, response, config) {
 }
 
 function parseTtl(cc, defaultTtl) {
-    const sm = cc.match(/s-maxage=(\d+)/);
+    const sm = cc.match(/(?:^|,)\s*s-maxage\s*=\s*"?(\d+)/i);
     if (sm) return parseInt(sm[1], 10);
-    const ma = cc.match(/max-age=(\d+)/);
+    const ma = cc.match(/(?:^|,)\s*max-age\s*=\s*"?(\d+)/i);
     if (ma) return parseInt(ma[1], 10);
     return defaultTtl;
 }
@@ -318,14 +302,64 @@ function parseTtl(cc, defaultTtl) {
 // Cache response builders
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildHitForPassMarker(config) {
+function buildCacheResponse(response, ttl, request) {
+    const stored = new Response(response.clone().body, response);
+    // Match Varnish: strip session/form cookies only from a validated cached copy.
+    // The origin response delivered on MISS retains its Set-Cookie headers.
+    stored.headers.delete('Set-Cookie');
+    stored.headers.set('X-FPC-Original-Cache-Control', response.headers.get('Cache-Control') || '');
+    stored.headers.set('Cache-Control', 'public, s-maxage=' + ttl);
+    stored.headers.set('X-FPC-Stored-At', String(Date.now()));
+    addCacheTags(stored, request);
+    return stored;
+}
+
+function buildHitForPassMarker(config, request) {
     return new Response(null, {
         status: 204,
         headers: {
             'Cache-Control': 's-maxage=' + config.hfpTtl,
             'X-FPC-HFP': '1',
+            'Cache-Tag': new URL(request.url).hostname.replace(/[.-]/g, '_'),
         },
     });
+}
+
+function addCacheTags(response, request) {
+    // Cloudflare may consume origin Cache-Tag before passing the response to us.
+    // Rebuild it from Magento tags, using the same hostname tag as CacheConfig.php.
+    const tags = [
+        new URL(request.url).hostname.replace(/[.-]/g, '_'),
+        ...(response.headers.get('Cache-Tag') || '').split(','),
+        ...(response.headers.get('X-Magento-Tags') || '').split(','),
+    ].map(tag => tag.trim()).filter(Boolean);
+    response.headers.set('Cache-Tag', [...new Set(tags)].join(','));
+}
+
+function fetchOrigin(request) {
+    // no-store already bypasses CDN caching; combining it with cf.cacheTtl throws.
+    return fetch(request, { cache: 'no-store' });
+}
+
+function clearLogoutVary(request, response) {
+    if (response.status < 200 || response.status >= 400
+        || !/\/customer\/account\/logout\/?$/i.test(new URL(request.url).pathname)) {
+        return response;
+    }
+
+    // Magento's vary cookie is host scoped with path=/, matching sendVary().
+    // Clear it on the logout redirect before another cacheable page is requested.
+    const cleared = new Response(response.body, response);
+    cleared.headers.append('Set-Cookie',
+        'X-Magento-Vary=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=Lax');
+    return cleared;
+}
+
+function getSetCookieHeaders(headers) {
+    if (typeof headers.getSetCookie === 'function') return headers.getSetCookie();
+    if (typeof headers.getAll === 'function') return headers.getAll('Set-Cookie');
+    // Do not split Expires dates: a cookie separator must precede a cookie name.
+    return (headers.get('Set-Cookie') || '').split(/,\s*(?=[^\s;,=]+=)/).filter(Boolean);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -334,7 +368,7 @@ function buildHitForPassMarker(config) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function vclDeliver(response, cacheStatus, config, originalRequest, debugMeta = {}) {
-    const resp = new Response(response.body, response);
+    const resp = new Response(originalRequest.method === 'HEAD' ? null : response.body, response);
     const url = new URL(originalRequest.url);
     const isStatic = /^\/(pub\/)?(media|static)\//.test(url.pathname);
 
@@ -344,15 +378,20 @@ function vclDeliver(response, cacheStatus, config, originalRequest, debugMeta = 
     // Set the worker's cache status, visible in both debug and production.
     resp.headers.set('cf-cache-status', cacheStatus === 'HIT' ? 'HIT' : cacheStatus === 'MISS' ? 'MISS' : 'BYPASS');
 
-    // Strip Set-Cookie from cached responses (VCL line 181: unset beresp.http.set-cookie).
-    // cacheTtlByStatus auto-strips Set-Cookie from the CDN copy, but belt-and-suspenders:
-    // ensure no stale cookies leak to another user on HIT.
+    // Cached HTML must never deliver a previous customer's cookies.
     if (cacheStatus === 'HIT') {
         resp.headers.delete('Set-Cookie');
     }
 
     // Preserve origin Cache-Control before browser no-cache override
-    const originCacheControl = resp.headers.get('Cache-Control');
+    const originCacheControl = resp.headers.get('X-FPC-Original-Cache-Control')
+        || resp.headers.get('Cache-Control');
+    resp.headers.delete('X-FPC-Original-Cache-Control');
+    const storedAt = Number(resp.headers.get('X-FPC-Stored-At'));
+    if (cacheStatus === 'HIT' && storedAt > 0) {
+        resp.headers.set('Age', String(Math.max(0, Math.floor((Date.now() - storedAt) / 1000))));
+    }
+    resp.headers.delete('X-FPC-Stored-At');
 
     // Prevent browser caching for non-static, non-private pages (VCL lines 215-219)
     if (!isStatic && !(originCacheControl || '').includes('private')) {
@@ -408,6 +447,9 @@ function vclDeliver(response, cacheStatus, config, originalRequest, debugMeta = 
 
 function normalizeUrl(url) {
     const normalized = new URL(url.toString());
+
+    // Internal key components come exclusively from cookies/headers, never input.
+    for (const param of CACHE_KEY_PARAMS) normalized.searchParams.delete(param);
 
     // Strip tracking/marketing params
     for (const param of FILTER_GET) {

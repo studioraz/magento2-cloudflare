@@ -1,0 +1,21 @@
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  call-pr-title:
+    uses: studioraz/ci-templates/.github/workflows/pr-title.yml@master
+    with:
+      subject-pattern: ^([A-Z][A-Z0-9]+-\d+ )?(?![A-Z]).+$
+      subject-pattern-error: |
+        The subject "{subject}" must start lowercase, optionally after a Jira key
+        ("ALFP-107 add express checkout").
+      validate-single-commit: true
+      single-commit-matches-title: true
+      ignore-labels: ignore-semantic-pull-request
+      comment: true

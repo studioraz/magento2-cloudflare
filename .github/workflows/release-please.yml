@@ -1,0 +1,19 @@
+name: Release
+
+on:
+  push:
+    branches: ["master"]
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC: picks up shared config changes without a push
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  call-release-please:
+    uses: studioraz/ci-templates/.github/workflows/release-please.yml@master
+    secrets:
+      # Optional PAT / GitHub App token; without it CI does not run on the release PR.
+      token: ${{ secrets.RELEASE_TOKEN }}

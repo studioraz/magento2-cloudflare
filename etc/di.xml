@@ -56,19 +56,16 @@
         </arguments>
     </virtualType>
 
-    <!-- REST client -->
-    <virtualType name="SrCloudflareCacheRestClient" type="SR\Gateway\Model\Http\Client\Rest">
+    <type name="SR\Cloudflare\Model\CloudflareApi">
         <arguments>
-            <argument name="logger" xsi:type="object">SrCloudflareCacheMainLogger</argument>
-            <argument name="converter" xsi:type="object">SR\Gateway\Model\Http\Client\Converter\ObjectToArrayRestConverter</argument>
+            <argument name="logger" xsi:type="object">SrCloudflareCacheBaseLogger</argument>
         </arguments>
-    </virtualType>
+    </type>
 
     <!-- CloudflareClient -->
     <type name="SR\Cloudflare\Model\CloudflareClient">
         <arguments>
             <argument name="config" xsi:type="object">SrCloudflareCacheConfig</argument>
-            <argument name="restClient" xsi:type="object">SrCloudflareCacheRestClient</argument>
             <argument name="logger" xsi:type="object">SrCloudflareCacheMainLogger</argument>
         </arguments>
     </type>

@@ -13,11 +13,19 @@
              resource="SR_Cloudflare::srcloudflare"/>
 
         <add id="SR_Cloudflare::srcloudflare_settings"
-             title="Settings"
+             title="Cache"
              sortOrder="1000"
              module="SR_Cloudflare"
              parent="SR_Cloudflare::srcloudflare"
              action="adminhtml/system_config/edit/section/srcloudflare/"
+             resource="SR_Cloudflare::srcloudflare_settings"/>
+
+        <add id="SR_Cloudflare::srcloudflare_images"
+             title="Images"
+             sortOrder="1010"
+             module="SR_Cloudflare"
+             parent="SR_Cloudflare::srcloudflare"
+             action="adminhtml/system_config/edit/section/srcloudflare_images/"
              resource="SR_Cloudflare::srcloudflare_settings"/>
     </menu>
 </config>

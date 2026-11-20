@@ -4,26 +4,23 @@ declare(strict_types=1);
 
 namespace SR\Cloudflare\Model;
 
-use Laminas\Http\Request as HttpRequest;
 use SR\Cloudflare\Config\CacheConfig;
+use SR\Cloudflare\Exception\CloudflareApiException;
 use SR\Cloudflare\Exception\PurgeException;
 use SR\Cloudflare\Exception\RetryablePurgeException;
-use SR\Gateway\Api\Http\Client\ClientInterface;
 use SR\Gateway\Api\LoggerInterface;
-use SR\Gateway\Model\Http\TransferBuilderFactory;
 
 class CloudflareClient
 {
     private const MAX_OPERATIONS_PER_REQUEST = 100;
     private const PURGE_TYPE_TAGS = 'tags';
     private const PURGE_TYPE_FILES = 'files';
-    private const RATE_LIMIT_ERROR_CODE = 1134;
 
     public function __construct(
         private readonly CacheConfig $config,
-        private readonly ClientInterface                  $restClient,
-        private readonly TransferBuilderFactory           $transferBuilderFactory,
-        private readonly LoggerInterface                  $logger
+        private readonly CloudflareApi $api,
+        private readonly ZoneDirectory $directory,
+        private readonly LoggerInterface $logger
     ) {
     }
 
@@ -62,7 +59,7 @@ class CloudflareClient
     /**
      * @param string[] $values
      */
-    public function purgeByType(string $type, array $values): void
+    public function purgeByType(string $type, array $values, ?string $zoneId = null): void
     {
         if (!in_array($type, [self::PURGE_TYPE_TAGS, self::PURGE_TYPE_FILES], true)) {
             throw new PurgeException(sprintf('Unsupported Cloudflare purge type "%s"', $type));
@@ -74,64 +71,42 @@ class CloudflareClient
             return;
         }
 
-        foreach (array_chunk($values, self::MAX_OPERATIONS_PER_REQUEST) as $batch) {
-            $this->sendPurgeRequest([$type => $batch]);
+        if (!$this->config->isConfigured()) {
+            return;
+        }
+
+        if ($zoneId !== null && !$this->directory->shouldPurgeZone($zoneId)) {
+            return;
+        }
+        $zoneIds = $zoneId === null ? $this->directory->getPurgeZoneIds() : [$zoneId];
+        $batches = array_chunk($values, self::MAX_OPERATIONS_PER_REQUEST);
+        $firstFailure = null;
+        foreach ($zoneIds as $id) {
+            try {
+                foreach ($batches as $batch) {
+                    $this->sendPurgeRequest($id, [$type => $batch]);
+                }
+            } catch (PurgeException $exception) {
+                $firstFailure ??= $exception;
+            }
+        }
+
+        if ($firstFailure !== null) {
+            throw $firstFailure;
         }
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function sendPurgeRequest(array $body): array
+    private function sendPurgeRequest(string $zoneId, array $body): void
     {
-        if (!$this->config->isConfigured()) {
-            return [];
-        }
-
-        $url = $this->config->getResolvedApiUrl();
-
         try {
-            $transfer = $this->transferBuilderFactory->create()
-                ->setMethod(HttpRequest::METHOD_POST)
-                ->setUri($url)
-                ->setHeaders([
-                    'Authorization' => 'Bearer ' . $this->config->getApiToken(),
-                    'Content-Type'  => 'application/json',
-                ])
-                ->setBody($body)
-                ->shouldEncode(true)
-                ->build();
-
-            $response = $this->restClient->placeRequest($transfer);
-            $payload = $response['object'] ?? [];
-
-            if (!is_array($payload) || ($payload['success'] ?? false) !== true) {
-                $message = $this->formatErrorMessage($payload);
-
-                if ($this->isRateLimitPayload($payload)) {
-                    throw new RetryablePurgeException($message);
-                }
-
-                throw new PurgeException($message);
+            $this->api->request('POST', '/zones/' . rawurlencode($zoneId) . '/purge_cache', $body);
+        } catch (CloudflareApiException $exception) {
+            $message = $exception->getMessage();
+            $this->logger->error('SR_Cloudflare: Purge API request failed: ' . $message);
+            if ($exception->isRateLimited()) {
+                throw new RetryablePurgeException($message, $exception->getRetryAfter(), 0, $exception);
             }
-
-            return $payload;
-        } catch (PurgeException $e) {
-            $this->logger->error(
-                'SR_Cloudflare: Purge API request failed: ' . $e->getMessage()
-            );
-            throw $e;
-        } catch (\Exception $e) {
-            $message = 'SR_Cloudflare: Purge API request failed: ' . $e->getMessage();
-            $this->logger->error(
-                $message
-            );
-
-            if ($this->isRateLimitMessage($e->getMessage())) {
-                throw new RetryablePurgeException($message, null, 0, $e);
-            }
-
-            throw new PurgeException($message, 0, $e);
+            throw new PurgeException($message, 0, $exception);
         }
     }
 
@@ -154,75 +129,5 @@ class CloudflareClient
         }
 
         return array_values(array_unique($normalized));
-    }
-
-    /**
-     * @param mixed $payload
-     */
-    private function formatErrorMessage($payload): string
-    {
-        if (!is_array($payload)) {
-            return 'Cloudflare purge API returned an invalid response.';
-        }
-
-        $errors = $payload['errors'] ?? [];
-
-        if (!is_array($errors) || empty($errors)) {
-            return 'Cloudflare purge API returned success=false.';
-        }
-
-        $messages = [];
-        foreach ($errors as $error) {
-            if (!is_array($error)) {
-                continue;
-            }
-
-            $code = $error['code'] ?? null;
-            $message = (string) ($error['message'] ?? 'Unknown Cloudflare error');
-            $messages[] = $code !== null ? sprintf('%s: %s', $code, $message) : $message;
-        }
-
-        return $messages !== [] ? implode('; ', $messages) : 'Cloudflare purge API request failed.';
-    }
-
-    /**
-     * @param mixed $payload
-     */
-    private function isRateLimitPayload($payload): bool
-    {
-        if (!is_array($payload)) {
-            return false;
-        }
-
-        $errors = $payload['errors'] ?? [];
-
-        if (!is_array($errors)) {
-            return false;
-        }
-
-        foreach ($errors as $error) {
-            if (!is_array($error)) {
-                continue;
-            }
-
-            if ((int) ($error['code'] ?? 0) === self::RATE_LIMIT_ERROR_CODE) {
-                return true;
-            }
-
-            if ($this->isRateLimitMessage((string) ($error['message'] ?? ''))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function isRateLimitMessage(string $message): bool
-    {
-        $message = strtolower($message);
-
-        return str_contains($message, 'rate limit')
-            || str_contains($message, 'too many requests')
-            || str_contains($message, '429');
     }
 }

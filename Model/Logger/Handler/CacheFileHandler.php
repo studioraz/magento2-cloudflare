@@ -10,8 +10,7 @@ use SR\Gateway\Api\Config\ConfigInterface;
 use SR\Gateway\Model\Config\Config;
 
 /**
- * File handler that reads active/debug flags from the 'cache' config group
- * instead of the hardcoded 'general' used by the Gateway base FileHandler.
+ * File handler that uses the cache group's Debug setting, including during connection setup.
  */
 class CacheFileHandler extends LoggerDebugHandler
 {
@@ -35,10 +34,6 @@ class CacheFileHandler extends LoggerDebugHandler
      */
     public function isHandling($record): bool
     {
-        if (!$this->config->getValue(Config::KEY_CONFIG_ACTIVE, self::CONFIG_GROUP)) {
-            return false;
-        }
-
         if (!parent::isHandling($record)) {
             return false;
         }

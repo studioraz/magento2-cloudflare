@@ -68,7 +68,7 @@ export default {
         }
 
         // --- vcl_hash ---
-        const cacheKey = vclHash(recv.request);
+        const cacheKey = vclHash(recv.request, config.cacheNamespace);
 
         // --- vcl_hit ---
         const cached = await caches.default.match(cacheKey);
@@ -90,6 +90,12 @@ export default {
         // --- vcl_backend_response ---
         // Never let fetch() store HTML before cacheability/vary checks have run.
         const response = await fetchOrigin(recv.request);
+        // Managed deployments can receive traffic before Magento switches its FPC engine.
+        if (config.cacheNamespace && response.headers.get('X-SR-Cloudflare-FPC') !== '1') {
+            return vclDeliver(response, 'UNCACHEABLE', config, request, {
+                reason: 'magento-fpc-inactive', ttl: null, cacheKey: null, cfStatus: null, startTime,
+            });
+        }
         const backend = vclBackendResponse(recv.request, response, config);
 
         if (backend.cacheable) {
@@ -132,8 +138,8 @@ function buildConfig(env) {
         debug:       env.DEBUG === 'true',
         defaultTtl:  parseInt(env.DEFAULT_TTL || '86400', 10),
         hfpTtl:      parseInt(env.HFP_TTL || '120', 10),
-        adminPath:   env.ADMIN_PATH || 'admin',
         bypassPaths: (env.BYPASS_PATHS || '').split(',').map(s => s.trim()).filter(Boolean),
+        cacheNamespace: env.MAGENTO_CACHE_NAMESPACE || '',
     };
 }
 
@@ -178,9 +184,6 @@ function shouldBypassPath(pathname, config) {
         if (lower.includes(seg)) return true;
     }
 
-    // Admin path
-    if (lower.includes('/' + config.adminPath)) return true;
-
     // Static files — CF CDN handles natively (VCL line 91-93)
     if (/^\/(pub\/)?(media|static)\//.test(lower)) return true;
 
@@ -200,10 +203,10 @@ function shouldBypassPath(pathname, config) {
 // Mirrors varnish7.vcl lines 109-142
 // ─────────────────────────────────────────────────────────────────────────────
 
-function vclHash(request) {
+function vclHash(request, cacheNamespace) {
     const url = new URL(request.url);
     const isGraphQL = url.pathname.includes('/graphql');
-    url.searchParams.set('__fpc', CACHE_KEY_VERSION);
+    url.searchParams.set('__fpc', cacheNamespace ? CACHE_KEY_VERSION + '-' + cacheNamespace : CACHE_KEY_VERSION);
 
     // X-Magento-Vary cookie → hash_data (VCL line 110-112)
     if (!isGraphQL || !request.headers.get('X-Magento-Cache-Id')) {
@@ -405,6 +408,7 @@ function vclDeliver(response, cacheStatus, config, originalRequest, debugMeta = 
         resp.headers.delete('Age');
     }
     resp.headers.delete('X-Magento-Debug');
+    resp.headers.delete('X-SR-Cloudflare-FPC');
     if (!isDebug) {
         resp.headers.delete('X-Magento-Tags');
         resp.headers.delete('Cache-Tag');

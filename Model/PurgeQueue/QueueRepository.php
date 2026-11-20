@@ -6,7 +6,10 @@ namespace SR\Cloudflare\Model\PurgeQueue;
 
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\AdapterInterface;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Lock\LockManagerInterface;
 use Magento\Framework\Stdlib\DateTime\DateTime;
+use SR\Cloudflare\Model\ZoneDirectory;
 
 class QueueRepository
 {
@@ -15,12 +18,15 @@ class QueueRepository
     public const TYPE_FILES = 'files';
     public const STATUS_PENDING = 'pending';
     public const STATUS_FAILED = 'failed';
+    private const WRITE_LOCK = 'sr_cloudflare_purge_queue_write';
 
     private ?bool $tableAvailable = null;
 
     public function __construct(
         private readonly ResourceConnection $resourceConnection,
-        private readonly DateTime $dateTime
+        private readonly DateTime $dateTime,
+        private readonly ZoneDirectory $directory,
+        private readonly LockManagerInterface $lock
     ) {
     }
 
@@ -55,24 +61,39 @@ class QueueRepository
             return false;
         }
 
+        try {
+            return $this->withWriteLock(fn(): bool => $this->enqueueForActiveZones($type, $values));
+        } catch (\Exception) {
+            return false;
+        }
+    }
+
+    private function enqueueForActiveZones(string $type, array $values): bool
+    {
         $now = $this->dateTime->gmtDate();
         $rows = [];
 
-        foreach ($values as $value) {
-            $rows[] = [
-                'purge_type' => $type,
-                'purge_value' => $value,
-                'purge_value_hash' => hash('sha256', $type . ':' . $value),
-                'status' => self::STATUS_PENDING,
-                'attempts' => 0,
-                'next_attempt_at' => null,
-                'last_error' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }
-
         try {
+            $zoneIds = $this->directory->getPurgeZoneIds();
+            foreach ($zoneIds as $zoneId) {
+                foreach ($values as $value) {
+                    $rows[] = [
+                        'purge_type' => $type,
+                        'zone_id' => $zoneId,
+                        'purge_value' => $value,
+                        'purge_value_hash' => hash('sha256', $zoneId . ':' . $type . ':' . $value),
+                        'status' => self::STATUS_PENDING,
+                        'attempts' => 0,
+                        'next_attempt_at' => null,
+                        'last_error' => null,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            }
+            if ($rows === []) {
+                return false;
+            }
             $this->getConnection()->insertOnDuplicate(
                 $this->getTableName(),
                 $rows,
@@ -84,6 +105,27 @@ class QueueRepository
         }
 
         return true;
+    }
+
+    public function withWriteLock(callable $operation): mixed
+    {
+        if (!$this->lock->lock(self::WRITE_LOCK, 5)) {
+            throw new LocalizedException(__('The Cloudflare purge queue is busy. Try again.'));
+        }
+        try {
+            return $operation();
+        } finally {
+            $this->lock->unlock(self::WRITE_LOCK);
+        }
+    }
+
+    public function deleteForZone(string $zoneId): int
+    {
+        if (!$this->isTableAvailable()) {
+            return 0;
+        }
+
+        return $this->getConnection()->delete($this->getTableName(), ['zone_id = ?' => $zoneId]);
     }
 
     /**
@@ -104,7 +146,7 @@ class QueueRepository
             ->from($this->getTableName())
             ->where('status = ?', self::STATUS_PENDING)
             ->where('next_attempt_at IS NULL OR next_attempt_at <= ?', $this->dateTime->gmtDate())
-            ->order(['purge_type ASC', 'queue_id ASC'])
+            ->order('queue_id ASC')
             ->limit($limit);
 
         return $connection->fetchAll($select);

@@ -1,0 +1,56 @@
+<?php
+/** @var \SR\Cloudflare\Block\Adminhtml\System\Config\Worker $block */
+/** @var \Magento\Framework\Escaper $escaper */
+$zoneField = $block->getZoneField();
+?>
+<div class="sr-cloudflare-worker"
+     data-mage-init='{"SR_Cloudflare/js/worker": {}}'
+     data-verify-url="<?= $escaper->escapeUrl($block->getUrl('srcloudflare/worker/verify')) ?>"
+     data-status-url="<?= $escaper->escapeUrl($block->getUrl('srcloudflare/worker/status')) ?>"
+     data-deploy-url="<?= $escaper->escapeUrl($block->getUrl('srcloudflare/worker/deploy')) ?>"
+     data-forget-url="<?= $escaper->escapeUrl($block->getUrl('srcloudflare/worker/forgetZone')) ?>"
+     data-delete-url="<?= $escaper->escapeUrl($block->getUrl('srcloudflare/worker/delete')) ?>">
+    <input type="hidden"
+           id="<?= $escaper->escapeHtmlAttr($zoneField->getHtmlId()) ?>"
+           name="<?= $escaper->escapeHtmlAttr($zoneField->getName()) ?>"
+           value="<?= $escaper->escapeHtmlAttr($zoneField->getValue() ?? 'all') ?>"
+           data-role="zone-selection" <?= $zoneField->getDisabled() || $zoneField->getReadonly() ? 'disabled' : '' ?>>
+    <div class="sr-cloudflare-worker__actions">
+        <button type="button" class="action-default" data-action="verify">
+            <span><?= $escaper->escapeHtml(__('Test Credentials')) ?></span>
+        </button>
+        <button type="button" class="action-primary" data-action="deploy" disabled>
+            <span><?= $escaper->escapeHtml(__('Start Deploy')) ?></span>
+        </button>
+        <button type="button" class="action-default" data-action="delete" disabled>
+            <span><?= $escaper->escapeHtml(__('Delete Worker')) ?></span>
+        </button>
+    </div>
+    <div class="sr-cloudflare-worker__feedback" data-role="feedback" role="status"></div>
+    <table class="admin__control-table sr-cloudflare-worker__zones" data-role="zones" hidden>
+        <thead>
+            <tr>
+                <th scope="col">
+                    <label class="sr-cloudflare-worker__select-all">
+                        <input type="checkbox" data-role="select-all-zones">
+                        <?= $escaper->escapeHtml(__('Select All')) ?>
+                    </label>
+                </th>
+                <th scope="col"><?= $escaper->escapeHtml(__('Zone ID')) ?></th>
+                <th scope="col"><?= $escaper->escapeHtml(__('Zone Domain')) ?></th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <div class="sr-cloudflare-worker__deployment" data-role="deployment">
+        <strong><?= $escaper->escapeHtml(__('Active deployment')) ?></strong>
+        <div data-role="deployment-message" role="status"></div>
+        <div class="sr-cloudflare-worker__deployment-details" data-role="deployment-details" hidden>
+            <span><?= $escaper->escapeHtml(__('Version ID')) ?></span>
+            <div class="sr-cloudflare-worker__deployment-value sr-cloudflare-worker__versions"
+                 data-role="versions"></div>
+            <span><?= $escaper->escapeHtml(__('Deployed')) ?></span>
+            <span class="sr-cloudflare-worker__deployment-value" data-role="deployed"></span>
+        </div>
+    </div>
+</div>

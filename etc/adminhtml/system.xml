@@ -6,173 +6,200 @@
 
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
     <system>
-        <!-- section id see: \SR\Cloudflare\Config\Config::EXT_ALIAS -->
-        <section id="srcloudflare" translate="label" type="text" sortOrder="350" showInDefault="1" showInWebsite="1" showInStore="1">
-            <label>Cloudflare</label>
+        <section id="srcloudflare_images" translate="label" type="text" sortOrder="360"
+                 showInDefault="1" showInWebsite="1" showInStore="1">
+            <label>Cloudflare Images</label>
             <tab>studioraz</tab>
             <resource>SR_Cloudflare::srcloudflare_settings</resource>
 
             <group id="general" translate="label" type="text" sortOrder="1" showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>General</label>
 
-                <field id="active" translate="label" sortOrder="100" type="select" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                <field id="active" translate="label comment" sortOrder="100" type="select"
+                       showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Enabled</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Enables Cloudflare image resizing for storefront images.</comment>
+                    <config_path>srcloudflare/general/active</config_path>
                 </field>
 
                 <field id="image_quality" type="text" translate="label comment" sortOrder="200" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Image Quality</label>
+                    <config_path>srcloudflare/general/image_quality</config_path>
                     <comment><![CDATA[Specifies quality for images in JPEG, WebP, and AVIF formats. The quality is in a 1-100 scale, but useful values are between <i>50</i> (low quality, small file size) and <i>90</i> (high quality, large file size). <i>85</i> is the default. When using the PNG format, an explicit quality setting allows use of PNG8 (palette) variant of the format.<br>See <a href="https://developers.cloudflare.com/images/image-resizing/url-format/#quality" target="_blank">Cloudflare documentation</a> for more information.]]></comment>
                 </field>
 
-                <field id="image_fit" type="select" translate="label" sortOrder="220" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
+                <field id="image_fit" type="select" translate="label comment" sortOrder="220" showInDefault="1" showInWebsite="1" showInStore="1" canRestore="1">
                     <label>Image Fit</label>
                     <source_model>SR\Cloudflare\Model\System\Config\Source\ImageFit</source_model>
+                    <config_path>srcloudflare/general/image_fit</config_path>
                     <comment><![CDATA[Affects interpretation of <i>width</i> and <i>height</i>. All resizing modes preserve aspect ratio.<br>See <a href="https://developers.cloudflare.com/images/image-resizing/url-format/#fit" target="_blank">Cloudflare documentation</a> for more information.]]></comment>
                 </field>
             </group>
+        </section>
+
+        <section id="srcloudflare" translate="label" type="text" sortOrder="350"
+                 showInDefault="1" showInWebsite="1" showInStore="0">
+            <label>Cloudflare Cache</label>
+            <tab>studioraz</tab>
+            <resource>SR_Cloudflare::srcloudflare_settings</resource>
 
             <group id="cache" translate="label" type="text" sortOrder="10"
                    showInDefault="1" showInWebsite="1" showInStore="0">
-                <label>Cache (FPC)</label>
+                <label>Full Page Cache</label>
 
-                <field id="active" translate="label" sortOrder="10" type="select"
-                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
-                    <label>Enabled</label>
-                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                </field>
-
-                <field id="zone_id" translate="label comment" sortOrder="20" type="text"
+                <field id="current_cache_engine" translate="label" sortOrder="1" type="label"
                        showInDefault="1" showInWebsite="1" showInStore="0">
-                    <label>Zone ID</label>
-                    <comment><![CDATA[Cloudflare Zone ID from the dashboard Overview page.]]></comment>
-                    <validate>required-entry</validate>
-                    <depends>
-                        <field id="active">1</field>
-                    </depends>
+                    <label>Current Cache Engine</label>
+                    <frontend_model>SR\Cloudflare\Block\Adminhtml\System\Config\CurrentCacheEngine</frontend_model>
                 </field>
 
                 <field id="account_id" translate="label comment" sortOrder="25" type="text"
-                       showInDefault="1" showInWebsite="1" showInStore="0">
+                       showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Account ID</label>
-                    <comment><![CDATA[Cloudflare Account ID from the dashboard Overview page.]]></comment>
-                    <validate>required-entry</validate>
-                    <depends>
-                        <field id="active">1</field>
-                    </depends>
+                    <comment>Account ID from the Cloudflare dashboard. Magento uses it to discover zones and deploy the shared FPC Worker.</comment>
+                    <validate>validate-alphanum</validate>
                 </field>
 
                 <field id="api_token" translate="label comment" sortOrder="30" type="obscure"
-                       showInDefault="1" showInWebsite="1" showInStore="0">
+                       showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>API Token</label>
                     <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
-                    <comment><![CDATA[Cloudflare API Token with <strong>Zone.Cache Purge</strong> permission.]]></comment>
-                    <depends>
-                        <field id="active">1</field>
-                    </depends>
+                    <comment><![CDATA[Use a Cloudflare Account API Token or User API Token with the following permissions for the configured account and its zones.<br>
+                        <strong>Account → Workers Scripts → Edit</strong><br>
+                        <strong>Zone → Zone → Read</strong><br>
+                        <strong>Zone → Workers Routes → Edit</strong><br>
+                        <strong>Zone → Cache Purge</strong><br>
+                        The same token is used for deployments, routes, and cache invalidation.]]></comment>
+                </field>
+
+                <field id="worker_name" translate="label comment" sortOrder="32" type="text"
+                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                    <label>Worker Name</label>
+                    <comment>Cloudflare name for the shared Worker. Set it before the first deployment.</comment>
+                    <config_path>srcloudflare/worker/name</config_path>
+                </field>
+
+                <field id="worker_management" translate="label comment" sortOrder="34" type="text"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Worker Management</label>
+                    <comment>Save the credentials and zone selection, then run Test Credentials. Start Deploy switches Magento to Cloudflare CDN after configuring the Worker and its routes. Delete Worker switches Cloudflare CDN back to Varnish.</comment>
+                    <frontend_model>SR\Cloudflare\Block\Adminhtml\System\Config\Worker</frontend_model>
+                    <backend_model>SR\Cloudflare\Model\System\Config\Backend\ZoneSelection</backend_model>
+                    <config_path>srcloudflare/cache/zone_selection</config_path>
                 </field>
 
                 <field id="debug" translate="label comment" sortOrder="100" type="select"
                        showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
                     <label>Debug</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                    <comment><![CDATA[When enabled, API requests and responses are written to <code>var/log/srcloudflarecache.log</code>]]></comment>
-                    <depends>
-                        <field id="active">1</field>
-                    </depends>
+                    <comment><![CDATA[Enables module diagnostics in <code>var/log/srcloudflarecache.log</code>. Credentials are excluded.]]></comment>
                 </field>
 
-                <field id="async_purge" translate="label comment" sortOrder="110" type="select"
-                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
-                    <label>Async Purge Queue</label>
-                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                    <comment><![CDATA[Queues Magento cache tag purges and sends them from cron using Cloudflare Pro-safe throttling.]]></comment>
-                    <depends>
-                        <field id="active">1</field>
-                    </depends>
+                <group id="magento_cache" translate="label" type="text" sortOrder="105"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Magento Cache</label>
+                    <attribute type="expanded">1</attribute>
+
+                    <field id="caching_application" extends="system/full_page_cache/caching_application"
+                           translate="label comment" sortOrder="1" showInDefault="1" showInWebsite="0" showInStore="0"
+                           canRestore="1">
+                        <comment>Select the global full-page cache application. Use Start Deploy and Delete Worker to switch Cloudflare CDN on and off.</comment>
+                        <config_path>system/full_page_cache/caching_application</config_path>
+                    </field>
+                    <field id="ttl" extends="system/full_page_cache/ttl"
+                           sortOrder="5" showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                        <config_path>system/full_page_cache/ttl</config_path>
+                    </field>
+                </group>
+
+                <group id="purge" translate="label" type="text" sortOrder="110"
+                       showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Purge Configuration</label>
+                    <field id="async_purge" translate="label comment" sortOrder="110" type="select"
+                           showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                        <label>Async Purge Queue</label>
+                        <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                        <comment><![CDATA[Queues Magento cache tag purges and sends them from cron using Cloudflare Pro-safe throttling.]]></comment>
+                        <config_path>srcloudflare/cache/async_purge</config_path>
+                    </field>
+                    <field id="purge_batch_size" translate="label comment" sortOrder="120" type="text"
+                           showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                        <label>Purge Batch Size</label>
+                        <validate>validate-digits validate-greater-than-zero</validate>
+                        <comment><![CDATA[Maximum Cloudflare purge operations per request. Cloudflare allows 100 for tag, hostname, prefix, and purge-everything requests; larger values are capped to 100.]]></comment>
+                        <config_path>srcloudflare/cache/purge_batch_size</config_path>
+                        <depends>
+                            <field id="async_purge">1</field>
+                        </depends>
+                    </field>
+                    <field id="purge_max_requests_per_cron" translate="label comment" sortOrder="130" type="text"
+                           showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                        <label>Max Purge Requests Per Cron Run</label>
+                        <validate>validate-digits validate-greater-than-zero</validate>
+                        <comment><![CDATA[Default 25 matches the Cloudflare Pro purge bucket size. Cron runs every minute.]]></comment>
+                        <config_path>srcloudflare/cache/purge_max_requests_per_cron</config_path>
+                        <depends>
+                            <field id="async_purge">1</field>
+                        </depends>
+                    </field>
+                    <field id="purge_max_attempts" translate="label comment" sortOrder="140" type="text"
+                           showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
+                        <label>Max Purge Attempts</label>
+                        <validate>validate-digits validate-greater-than-zero</validate>
+                        <comment><![CDATA[Queue rows are marked failed after this many unsuccessful API attempts.]]></comment>
+                        <config_path>srcloudflare/cache/purge_max_attempts</config_path>
+                        <depends>
+                            <field id="async_purge">1</field>
+                        </depends>
+                    </field>
+                </group>
+
+                <group id="worker" translate="label" type="text" sortOrder="400"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Worker Configuration</label>
+
+                    <field id="debug" translate="label comment" sortOrder="10" type="select"
+                           showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                        <label>Worker Debug Mode</label>
+                        <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                        <comment>Enables diagnostic response headers after deployment.</comment>
+                        <config_path>srcloudflare/worker/debug</config_path>
+                    </field>
+                    <field id="hfp_ttl" translate="label comment" sortOrder="30" type="text"
+                           showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                        <label>Hit-For-Pass TTL (seconds)</label>
+                        <validate>validate-digits</validate>
+                        <comment>Lifetime of markers for responses the Worker cannot cache. Defaults to 120 seconds.</comment>
+                        <config_path>srcloudflare/worker/hfp_ttl</config_path>
+                    </field>
+                    <field id="bypass_paths" translate="label comment" sortOrder="40" type="textarea"
+                           showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                        <label>Additional Bypass Paths</label>
+                        <comment><![CDATA[Enter paths such as <code>/api</code> or <code>/rest</code>, one per line or separated by commas. The Worker uses these paths to skip caching for matching requests. Save the configuration and run Start Deploy to apply changes.]]></comment>
+                        <config_path>srcloudflare/worker/bypass_paths</config_path>
+                    </field>
+                </group>
+            </group>
+
+            <group id="worker_routes" translate="label" type="text" sortOrder="20"
+                   showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>Worker Routes</label>
+
+                <field id="default_bypass_routes" translate="label comment" sortOrder="10" type="label"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Built-in Bypass Routes</label>
+                    <comment>Magento applies these exclusions during deployment. The Admin bypass is generated from the Magento Admin URL and is added where its hostname belongs to a selected zone.</comment>
+                    <frontend_model>SR\Cloudflare\Block\Adminhtml\System\Config\DefaultWorkerRoutes</frontend_model>
                 </field>
 
-                <field id="purge_batch_size" translate="label comment" sortOrder="120" type="text"
-                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
-                    <label>Purge Batch Size</label>
-                    <validate>validate-digits validate-greater-than-zero</validate>
-                    <comment><![CDATA[Maximum Cloudflare purge operations per request. Cloudflare allows 100 for tag, hostname, prefix, and purge-everything requests; larger values are capped to 100.]]></comment>
-                    <depends>
-                        <field id="active">1</field>
-                        <field id="async_purge">1</field>
-                    </depends>
+                <field id="bypass_paths" translate="label comment" sortOrder="20" type="text"
+                       showInDefault="1" showInWebsite="0" showInStore="0" canRestore="1">
+                    <label>Additional Bypass Routes</label>
+                    <comment><![CDATA[Add one path per row, such as <code>/api</code> or <code>/feeds</code>. Magento creates a route such as <code>/feeds/*</code> without a Worker for the domain and subdomains of each selected zone. Save the configuration and run Start Deploy to apply changes.]]></comment>
+                    <frontend_model>SR\Cloudflare\Block\Adminhtml\System\Config\AdditionalBypassRoutes</frontend_model>
+                    <backend_model>SR\Cloudflare\Model\System\Config\Backend\BypassRoutes</backend_model>
                 </field>
-
-                <field id="purge_max_requests_per_cron" translate="label comment" sortOrder="130" type="text"
-                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
-                    <label>Max Purge Requests Per Cron Run</label>
-                    <validate>validate-digits validate-greater-than-zero</validate>
-                    <comment><![CDATA[Default 25 matches the Cloudflare Pro purge bucket size. Cron runs every minute.]]></comment>
-                    <depends>
-                        <field id="active">1</field>
-                        <field id="async_purge">1</field>
-                    </depends>
-                </field>
-
-                <field id="purge_max_attempts" translate="label comment" sortOrder="140" type="text"
-                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
-                    <label>Max Purge Attempts</label>
-                    <validate>validate-digits validate-greater-than-zero</validate>
-                    <comment><![CDATA[Queue rows are marked failed after this many unsuccessful API attempts.]]></comment>
-                    <depends>
-                        <field id="active">1</field>
-                        <field id="async_purge">1</field>
-                    </depends>
-                </field>
-
-<!--                Future implementation plan to have an option fully managing the Cloudflare Worker configuration from Magento admin, including pushing updates to the worker via API. -->
-<!--                For now, worker configuration is managed separately via Wrangler or Cloudflare dashboard.-->
-<!--                <group id="worker" translate="label comment" type="text" sortOrder="400"-->
-<!--                       showInDefault="1" showInWebsite="1" showInStore="0">-->
-<!--                    <label>Worker Configuration</label>-->
-<!--                    <comment><![CDATA[Environment variables used by the Cloudflare FPC Worker. These values will be pushed to the worker via API.]]></comment>-->
-<!--                    <depends>-->
-<!--                        <field id="active">1</field>-->
-<!--                    </depends>-->
-
-<!--                    <field id="debug" translate="label comment" sortOrder="10" type="select"-->
-<!--                           showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">-->
-<!--                        <label>Debug Mode</label>-->
-<!--                        <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>-->
-<!--                        <comment><![CDATA[Maps to worker env <code>DEBUG</code>. When enabled, the worker adds diagnostic response headers (X-FPC-*).]]></comment>-->
-<!--                        <config_path>srcloudflare/worker/debug</config_path>-->
-<!--                    </field>-->
-
-<!--                    <field id="default_ttl" translate="label comment" sortOrder="20" type="text"-->
-<!--                           showInDefault="0" showInWebsite="1" showInStore="0">-->
-<!--                        <label>Default TTL Override (seconds)</label>-->
-<!--                        <validate>validate-zero-or-greater validate-digits</validate>-->
-<!--                        <comment><![CDATA[Maps to worker env <code>DEFAULT_TTL</code>. When set, overrides the global <strong>System &gt; Full Page Cache &gt; TTL for public content</strong> for this website. Leave empty to use the global value.]]></comment>-->
-<!--                        <config_path>srcloudflare/worker/default_ttl</config_path>-->
-<!--                    </field>-->
-
-<!--                    <field id="hfp_ttl" translate="label comment" sortOrder="30" type="text"-->
-<!--                           showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">-->
-<!--                        <label>Hit-For-Pass TTL (seconds)</label>-->
-<!--                        <validate>validate-zero-or-greater validate-digits</validate>-->
-<!--                        <comment><![CDATA[Maps to worker env <code>HFP_TTL</code>. TTL for hit-for-pass markers (uncacheable URL placeholders). Default: 120 (2 min).]]></comment>-->
-<!--                        <config_path>srcloudflare/worker/hfp_ttl</config_path>-->
-<!--                    </field>-->
-
-<!--                    <field id="admin_path" translate="label comment" sortOrder="40" type="text"-->
-<!--                           showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">-->
-<!--                        <label>Admin Path</label>-->
-<!--                        <comment><![CDATA[Maps to worker env <code>ADMIN_PATH</code>. The admin URL segment to bypass caching. Default: admin. If admin path includes "admin" - cache bypassed, otherwise update this field.]]></comment>-->
-<!--                        <config_path>srcloudflare/worker/admin_path</config_path>-->
-<!--                    </field>-->
-
-<!--                    <field id="bypass_paths" translate="label comment" sortOrder="50" type="text"-->
-<!--                           showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">-->
-<!--                        <label>Bypass Paths</label>-->
-<!--                        <comment><![CDATA[Maps to worker env <code>BYPASS_PATHS</code>. Comma-separated list of additional URL path segments that should bypass caching (e.g. <code>/api,/rest</code>).]]></comment>-->
-<!--                        <config_path>srcloudflare/worker/bypass_paths</config_path>-->
-<!--                    </field>-->
-<!--                </group>-->
             </group>
         </section>
     </system>

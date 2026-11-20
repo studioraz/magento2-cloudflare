@@ -1,0 +1,91 @@
+.sr-cloudflare-worker {
+    display: grid;
+    gap: 1.6rem;
+    grid-template-columns: minmax(0, 1fr);
+    margin-block-end: 0.6rem;
+}
+
+.sr-cloudflare-worker__actions,
+.sr-cloudflare-worker__versions > div {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+}
+
+.sr-cloudflare-worker__actions [data-action="delete"] {
+    background-color: #b4232d;
+    border-color: #b4232d;
+    color: #fff;
+}
+
+.sr-cloudflare-worker__actions [data-action="delete"]:enabled:is(:hover, :active, :focus-visible) {
+    background-color: #921c25;
+    border-color: #921c25;
+}
+
+.sr-cloudflare-worker__feedback:empty,
+.sr-cloudflare-worker [data-role="deployment-message"]:empty {
+    display: none;
+}
+
+.sr-cloudflare-worker__feedback > div + div {
+    margin-block-start: 0.4rem;
+}
+
+.sr-cloudflare-worker .sr-cloudflare-worker__zones th,
+.sr-cloudflare-worker .sr-cloudflare-worker__zones td {
+    overflow-wrap: anywhere;
+    padding: 0.9rem 1.2rem;
+    vertical-align: middle;
+}
+
+.sr-cloudflare-worker__zones th:first-child {
+    width: 1%;
+}
+
+.sr-cloudflare-worker__select-all {
+    align-items: center;
+    display: inline-flex;
+    gap: 0.6rem;
+    white-space: nowrap;
+}
+
+.sr-cloudflare-worker__zones input[type="checkbox"] {
+    margin: 0;
+}
+
+.sr-cloudflare-worker__deployment {
+    border-block-start: 1px solid #ddd;
+    padding-block-start: 1.2rem;
+}
+
+.sr-cloudflare-worker [data-role="deployment-message"]:not(:empty) {
+    margin-block-start: 0.6rem;
+}
+
+.sr-cloudflare-worker__deployment-details:not([hidden]) {
+    align-items: center;
+    display: grid;
+    gap: 0.8rem 1.6rem;
+    grid-template-columns: max-content minmax(0, 1fr);
+    margin: 0.8rem 0 0;
+}
+
+.sr-cloudflare-worker__deployment-value {
+    overflow-wrap: anywhere;
+}
+
+.sr-cloudflare-worker__versions > div + div {
+    margin-block-start: 0.6rem;
+}
+
+.sr-cloudflare-worker__versions button {
+    font-size: 1.2rem;
+    padding: 0.5rem 0.8rem;
+}
+
+.sr-cloudflare-worker-routes__built-in {
+    margin-block: 0 0.8rem;
+    padding-inline-start: 2rem;
+}

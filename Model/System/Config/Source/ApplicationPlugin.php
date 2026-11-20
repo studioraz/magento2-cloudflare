@@ -9,12 +9,18 @@ use SR\Cloudflare\Config\CacheConfig;
 
 class ApplicationPlugin
 {
+    public function __construct(private readonly CacheConfig $config)
+    {
+    }
+
     public function afterToOptionArray(Application $subject, array $result): array
     {
-        $result[] = [
-            'value' => CacheConfig::CLOUDFLARE,
-            'label' => __('Cloudflare CDN'),
-        ];
+        if ($this->config->isCloudflareApplication()) {
+            $result[] = [
+                'value' => CacheConfig::CLOUDFLARE,
+                'label' => __('Cloudflare CDN'),
+            ];
+        }
 
         return $result;
     }

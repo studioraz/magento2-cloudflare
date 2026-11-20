@@ -8,4 +8,12 @@
         <plugin name="sr_cloudflare_add_application_option"
                 type="SR\Cloudflare\Model\System\Config\Source\ApplicationPlugin"/>
     </type>
+    <type name="Magento\Config\Model\Config\Structure\ElementVisibilityInterface">
+        <plugin name="sr_cloudflare_full_page_cache_field_visibility"
+                type="SR\Cloudflare\Plugin\Adminhtml\FullPageCacheFields"/>
+    </type>
+    <type name="Magento\Config\Controller\Adminhtml\System\Config\Save">
+        <plugin name="sr_cloudflare_full_page_cache_field_save"
+                type="SR\Cloudflare\Plugin\Adminhtml\FullPageCacheFields"/>
+    </type>
 </config>

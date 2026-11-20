@@ -38,33 +38,43 @@ class ProcessPurgeQueue
         }
 
         $requestsSent = 0;
+        $rateLimited = [];
         foreach ($this->createBatches($rows, $batchSize) as $batch) {
             if ($requestsSent >= $maxRequests) {
                 break;
             }
 
-            $this->throttleBeforeRequest($requestsSent);
-
-            if ($this->processBatch($batch)) {
-                $requestsSent++;
+            $zoneId = (string) $batch[0]['zone_id'];
+            if (isset($rateLimited[$zoneId])) {
                 continue;
             }
 
-            break;
+            $this->throttleBeforeRequest($requestsSent);
+            $requestsSent++;
+            if (!$this->processBatch($batch, $zoneId)) {
+                $rateLimited[$zoneId] = true;
+            }
         }
     }
 
     /**
      * @param array<int, array<string, mixed>> $batch
      */
-    private function processBatch(array $batch): bool
+    private function processBatch(array $batch, string $zoneId): bool
     {
         $type = (string) ($batch[0]['purge_type'] ?? '');
         $values = array_map(static fn(array $row): string => (string) $row['purge_value'], $batch);
         $queueIds = array_map(static fn(array $row): int => (int) $row['queue_id'], $batch);
 
         try {
-            $this->cloudflareClient->purgeByType($type, $values);
+            if ($zoneId === '') {
+                // Existing jobs did not record a zone. Expand them before attempting any API requests.
+                if (!$this->queueRepository->enqueue($type, $values)) {
+                    throw new PurgeException('Could not assign existing purge jobs to Cloudflare zones.');
+                }
+            } else {
+                $this->cloudflareClient->purgeByType($type, $values, $zoneId);
+            }
             $this->queueRepository->markComplete($queueIds);
             return true;
         } catch (RetryablePurgeException $exception) {
@@ -101,24 +111,14 @@ class ProcessPurgeQueue
      */
     private function createBatches(array $rows, int $batchSize): array
     {
-        $batches = [];
-        $currentType = null;
-        $currentBatch = [];
-
+        $groups = [];
         foreach ($rows as $row) {
-            $type = (string) ($row['purge_type'] ?? '');
-
-            if ($currentBatch !== [] && ($type !== $currentType || count($currentBatch) >= $batchSize)) {
-                $batches[] = $currentBatch;
-                $currentBatch = [];
-            }
-
-            $currentType = $type;
-            $currentBatch[] = $row;
+            $groups[$row['zone_id'] . ':' . $row['purge_type']][] = $row;
         }
 
-        if ($currentBatch !== []) {
-            $batches[] = $currentBatch;
+        $batches = [];
+        foreach ($groups as $group) {
+            array_push($batches, ...array_chunk($group, $batchSize));
         }
 
         return $batches;

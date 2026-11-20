@@ -71,7 +71,7 @@ Developed and maintained by [Studio Raz](https://studioraz.co.il/) and released 
 - A Cloudflare account with your domain proxied through Cloudflare (orange cloud icon enabled)
 - **For FPC:** A [Cloudflare Workers](https://workers.cloudflare.com/) subscription. The free tier allows 100,000 requests/day; the paid plan ($5/month) includes 10 million requests/month.
 - **For Image Optimization:** [Cloudflare Images](https://developers.cloudflare.com/images/) is available on all plans. The free tier includes 5,000 unique transformations/month. For higher volumes, the paid plan costs $0.50 per 1,000 unique transformations.
-- A Cloudflare **API Token** with the **Zone.Cache Purge** permission
+- A manually created Cloudflare Account API Token or User API Token with Workers Scripts Edit on the account and Zone Read, Workers Routes Edit, and Cache Purge on its zones.
 
 ### Magento
 
@@ -101,11 +101,11 @@ Developed and maintained by [Studio Raz](https://studioraz.co.il/) and released 
 
 ## Configuration
 
-All settings are available in the Magento Admin under:
+Magento Admin exposes both sections under **Stores > Configuration > Studio Raz**.
 
-**Stores > Configuration > Studio Raz > Cloudflare**
+### Cloudflare Images
 
-### General Settings (Image Optimization)
+The **General** group is available at the Default, Website, and Store View scopes.
 
 | Field | Default | Description |
 |---|---|---|
@@ -124,19 +124,19 @@ All settings are available in the Magento Admin under:
 | `pad` | Resize to fit within bounds and pad remaining space. |
 | `scale-down` | Like `contain`, but never scales up. |
 
-### Cache (FPC) Settings
+### Cloudflare Cache
 
 These settings are scoped to **Default / Website** (not Store View).
 
 | Field | Default | Description |
 |---|---|---|
 | Enabled | No | Enable Cloudflare FPC cache management. |
-| Zone ID | -- | Cloudflare Zone ID from the dashboard Overview page. |
 | Account ID | -- | Cloudflare Account ID from the dashboard Overview page. |
-| API Token | -- | Cloudflare API Token with **Zone.Cache Purge** permission. Stored encrypted. |
-| Debug | No | When enabled, logs API requests and responses to `var/log/srcloudflarecache.log`. |
+| API Token | -- | Cloudflare account or user token for deployment, routes, and purge. Stored encrypted. |
+| Worker Name | `magento-fpc` | Name of the shared Worker. Choose it before the first deployment. |
+| Debug | No | Enables module diagnostics in `var/log/srcloudflarecache.log`. Credentials are excluded. |
 
-<img width="1246" height="804" alt="Screenshot 2026-04-01 at 23 53 08" src="https://github.com/user-attachments/assets/f9df2e3f-adbb-43f2-b2b7-c5536f57d79f" />
+**Test Credentials** loads the zone IDs and domains. **Select All** is enabled by default and includes newly discovered zones. Clear individual checkboxes and click **Save Config** to update the selection. Magento keeps purging each deselected zone while its deployment records still contain managed routes. On **Start Deploy**, Magento removes those routes before updating the shared Worker and configuring routes for the selected zones. Purges for a deselected zone stop once Magento completes its route cleanup. Manually added or edited routes remain in Cloudflare. If all zones are deselected, **Start Deploy** only removes managed routes. **Active deployment** shows the version ID and deployment time from Cloudflare whenever the page opens and after **Start Deploy** completes.
 
 > **Important:** You must also select Cloudflare as the FPC application. Go to **Stores > Configuration > Advanced > System > Full Page Cache > Caching Application** and select **Cloudflare**.
 
@@ -152,7 +152,7 @@ Browser ──> Cloudflare CDN ──> Worker (cache check) ──> Origin (Mage
         <── Cached response (on subsequent requests)
 ```
 
-The Worker automatically bypasses the cache for admin pages, checkout, customer account pages, and API requests. It also strips marketing query parameters (UTM, Facebook, Google Ads, etc.) so that `?utm_source=...` variants don't create duplicate cache entries.
+Cloudflare Workers Routes bypass Worker execution for Magento Admin. The Worker skips caching for checkout, customer account pages, and other requests that meet its bypass rules. It also strips marketing query parameters (UTM, Facebook, Google Ads, etc.) so that `?utm_source=...` variants don't create duplicate cache entries.
 
 ### Automatic Cache Purging
 
@@ -170,23 +170,21 @@ The module includes a Cloudflare Worker script (`CFWorker/FPC-worker.js`) that m
 
 ### Deployment Steps
 
-1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com/).
-2. Navigate to **Workers & Pages > Create Application > Create Worker**.
-3. Paste or upload the contents of `CFWorker/FPC-worker.js`.
-4. Set up **Environment Variables** if needed (see below).
-5. Add a **Route** that maps your Magento store domain to this worker (e.g., `example.com/*`).
+1. Create an account or user API token in Cloudflare with the required permissions. Save it with the **Account ID** under **Cloudflare Cache > Cache (FPC)** in Default Config.
+2. Click **Test Credentials** to verify access and inspect the zones. If needed, select a subset and save the configuration before deploying.
+3. Set the **Worker Configuration** values, add any extra exclusions under **Worker Routes**, and save the configuration.
+4. Click **Start Deploy** to upload the Worker and configure routes. Check the result for each zone and review the active version.
 
 ### Worker Environment Variables
 
-Set these in the Cloudflare Worker **Settings > Variables** panel:
+Magento supplies these bindings during deployment:
 
 | Variable | Type | Description |
 |---|---|---|
 | `DEBUG` | Boolean | Enables diagnostic `X-FPC-*` response headers for debugging. |
-| `DEFAULT_TTL` | Number | Cache TTL in seconds for successful responses. Falls back to Magento's global FPC TTL. |
+| `DEFAULT_TTL` | Number | Fallback TTL for cacheable responses, taken from Magento's global **Full Page Cache > TTL for public content** (`system/full_page_cache/ttl`). |
 | `HFP_TTL` | Number | TTL in seconds for hit-for-pass markers. Default: `120`. |
-| `ADMIN_PATH` | String | Admin URL segment to bypass. Default: `admin`. |
-| `BYPASS_PATHS` | String | Comma-separated additional paths to bypass (e.g. `/api,/rest`). |
+| `BYPASS_PATHS` | String | Additional Bypass Paths from Worker Configuration. Defaults to an empty string. The Worker receives matching requests and skips caching. |
 
 The Worker strips 50+ common marketing and tracking query parameters to improve cache hit rates. See the `FILTER_GET` constant in `CFWorker/FPC-worker.js` for the complete list.
 
@@ -194,11 +192,17 @@ The Worker strips 50+ common marketing and tracking query parameters to improve 
 
 ### Worker Routes
 
-**Worker Routes** allow you to define URL patterns that should bypass the Cloudflare Worker entirely. By excluding specific URLs from Worker processing, you reduce the number of requests handled by the Worker, which helps lower costs and avoid unnecessary overhead for routes that don't need caching (e.g., admin panels, API endpoints, or checkout pages).
+In Magento Admin under **Cloudflare Cache → Worker Routes** in **Default Config**, review the read-only routes for static files, media, `/cdn-cgi/*`, `/rest/*`, and the automatically detected Magento Admin URL. Under **Additional Bypass Routes**, click **Add Route** and enter one path per row, such as `/api` or `/feeds`. Use **Delete** to remove a row. A path like `/feeds` produces `/feeds/*` exclusions for the domain and subdomains of each selected zone. Magento uses this field to synchronize Cloudflare routes during deployment.
+
+Save the configuration and run **Start Deploy**. Magento uses Cloudflare routes without a Worker script to exclude matching requests from Worker execution. [Cloudflare Workers Routes](https://developers.cloudflare.com/workers/configuration/routing/routes/#matching-behavior)
+
+When the configured Magento Admin host belongs to a selected zone, Magento prepares its bypass route before uploading the Worker. The route matches the Admin path on a shared host or the entire host for a dedicated Admin subdomain. A route configuration error stops the upload.
+
+If a previous deployment created routes from **Additional Bypass Paths**, add any routes you want to keep to **Additional Bypass Routes**. The next deployment removes obsolete Magento-managed routes.
 
 <img width="1722" height="792" alt="Screenshot 2026-04-02 at 00 07 42" src="https://github.com/user-attachments/assets/7cd66c65-baf0-43f4-b710-394460d15ee4" />
 
-> **Note:** The worker itself already has all the basic bypassed urls configuration, in case of this setup it will be as a fallback.
+The Worker also has internal cache-bypass rules for requests it receives.
 
 ### Magento home page speed
 
@@ -208,7 +212,7 @@ The Worker strips 50+ common marketing and tracking query parameters to improve 
 
 ## Automatic Cache Purging
 
-The module automatically purges the Cloudflare cache when content changes in Magento. Only the affected pages are purged -- the rest of your cache stays warm.
+The module sends the same Magento cache tags to every discovered Cloudflare zone. Each zone purges matching content and has its own result and retry state in the queue.
 
 ### What triggers a cache purge
 
@@ -262,7 +266,7 @@ When enabled, Magento's local image cache generation is skipped entirely. Images
 **Cache is not being purged after product/category save**
 
 - Ensure **Cache > Enabled** is set to **Yes**.
-- Ensure **Zone ID** and **API Token** are correctly set and that the API Token has **Zone.Cache Purge** permission.
+- Use **Test Credentials** to verify the account and zones. Make sure the API token has **Cache Purge** permission on each zone.
 - Confirm that Cloudflare is selected as the caching application in **Stores > Configuration > Advanced > System > Full Page Cache > Caching Application**.
 - Enable **Cache > Debug** and inspect `var/log/srcloudflarecache.log` for API errors.
 
@@ -270,7 +274,6 @@ When enabled, Magento's local image cache generation is skipped entirely. Images
 
 - Confirm the Cloudflare Worker is deployed and routed to your domain.
 - Check that `Cache-Tag` headers are present in origin responses (visible in browser DevTools or `curl -I`).
-- Ensure the worker's `ADMIN_PATH` variable matches your actual admin path if it is customized.
 - Check `X-FPC-*` headers in the response (requires `DEBUG=true` in worker env).
 <img width="669" height="432" alt="Screenshot 2026-04-01 at 23 09 18" src="https://github.com/user-attachments/assets/2fec62e5-982a-4ee1-87a3-0c653a7c7cb6" />
 
@@ -303,15 +306,3 @@ Please follow the [Magento 2 coding standards](https://developer.adobe.com/comme
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
-## Releases
-
-Releases follow the [shared Release Please guide](https://github.com/studioraz/ci-templates/blob/master/docs/release-please.md).
-Use Conventional Commit PR titles (`feat: add support`, `fix: correct behavior`).
-Squash merges use the PR title and body; single-commit PRs must have a matching commit title.
-
-Pushes to `master`, the Monday 06:00 UTC schedule and manual runs maintain the release PR and synchronize shared configuration.
-Merging a release PR creates a GitHub Release and an unprefixed SemVer tag, and updates the root `CHANGELOG.md`.
-Enrollment preserves existing release history (verified baseline `1.7.2`).
-
-The optional `RELEASE_TOKEN` is forwarded to the shared workflow. Without it, `GITHUB_TOKEN` is used and bot-created PRs do not trigger PR-title CI. Supply a PAT or GitHub App token when those checks are required.

@@ -1,0 +1,15 @@
+<?php
+/** @var \SR\Cloudflare\Block\Adminhtml\System\Config\DefaultWorkerRoutes $block */
+/** @var \Magento\Framework\Escaper $escaper */
+$adminPattern = $block->getAdminPattern();
+?>
+<ul class="sr-cloudflare-worker-routes__built-in">
+    <?php foreach ($block->getDefaultPatterns() as $pattern): ?>
+        <li><code><?= $escaper->escapeHtml($pattern) ?></code></li>
+    <?php endforeach; ?>
+    <?php if ($adminPattern !== null): ?>
+        <li><code><?= $escaper->escapeHtml($adminPattern) ?></code></li>
+    <?php else: ?>
+        <li><?= $escaper->escapeHtml(__('Magento Admin bypass path is unavailable.')) ?></li>
+    <?php endif; ?>
+</ul>

@@ -1,0 +1,25 @@
+{
+    "studioraz_cloudflare_purge_queue": {
+        "column": {
+            "queue_id": true,
+            "purge_type": true,
+            "zone_id": true,
+            "purge_value": true,
+            "purge_value_hash": true,
+            "status": true,
+            "attempts": true,
+            "next_attempt_at": true,
+            "last_error": true,
+            "created_at": true,
+            "updated_at": true
+        },
+        "index": {
+            "STUDIORAZ_CLOUDFLARE_PURGE_QUEUE_STATUS_NEXT_ATTEMPT_AT": true,
+            "STUDIORAZ_CLOUDFLARE_PURGE_QUEUE_PURGE_TYPE_STS_NEXT_ATTEMPT_AT": true
+        },
+        "constraint": {
+            "PRIMARY": true,
+            "STUDIORAZ_CLOUDFLARE_PURGE_QUEUE_PURGE_TYPE_PURGE_VALUE_HASH": true
+        }
+    }
+}

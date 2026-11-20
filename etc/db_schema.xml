@@ -3,6 +3,7 @@
     <table name="studioraz_cloudflare_purge_queue" resource="default" engine="innodb" comment="Studio Raz Cloudflare Purge Queue">
         <column xsi:type="int" name="queue_id" unsigned="true" nullable="false" identity="true" comment="Queue ID"/>
         <column xsi:type="varchar" name="purge_type" length="16" nullable="false" comment="Purge Type"/>
+        <column xsi:type="varchar" name="zone_id" length="32" nullable="false" default="" comment="Cloudflare Zone ID"/>
         <column xsi:type="text" name="purge_value" nullable="false" comment="Purge Value"/>
         <column xsi:type="varchar" name="purge_value_hash" length="64" nullable="false" comment="Purge Value Hash"/>
         <column xsi:type="varchar" name="status" length="16" nullable="false" default="pending" comment="Queue Status"/>

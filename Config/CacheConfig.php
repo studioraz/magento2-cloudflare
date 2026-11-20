@@ -22,8 +22,10 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
     public const CLOUDFLARE = 3;
 
     private const KEY_ZONE_ID = 'zone_id';
+    private const KEY_ACCOUNT_ID = 'account_id';
     private const KEY_API_TOKEN = 'api_token';
     private const KEY_API_URL = 'api_url';
+    private const KEY_ZONE_SELECTION = 'zone_selection';
     private const KEY_ASYNC_PURGE = 'async_purge';
     private const KEY_PURGE_BATCH_SIZE = 'purge_batch_size';
     private const KEY_PURGE_MAX_REQUESTS_PER_CRON = 'purge_max_requests_per_cron';
@@ -72,7 +74,45 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
 
     public function getApiToken(): ?string
     {
+        if ($this->getAccountId() !== '') {
+            return $this->getGlobalValue(self::KEY_API_TOKEN);
+        }
+
         return $this->getValue(self::KEY_API_TOKEN, self::DEFAULT_PATH_GROUP);
+    }
+
+    public function getAccountId(): string
+    {
+        return strtolower(trim((string) $this->getGlobalValue(self::KEY_ACCOUNT_ID)));
+    }
+
+    public function getWorkerName(): string
+    {
+        return trim((string) $this->getGlobalValue('name', self::WORKER_PATH_GROUP));
+    }
+
+    /** @return list<string>|null Null selects every accessible zone. */
+    public function getSelectedZoneIds(): ?array
+    {
+        $value = $this->getGlobalValue(self::KEY_ZONE_SELECTION);
+        if ($value === null || $value === 'all') {
+            return null;
+        }
+        if (!preg_match('/^[a-f0-9]{32}(?:,[a-f0-9]{32})*$/D', $value)) {
+            return [];
+        }
+
+        return explode(',', $value);
+    }
+
+    public function isZoneSelectionEmpty(): bool
+    {
+        return $this->getGlobalValue(self::KEY_ZONE_SELECTION) === 'none';
+    }
+
+    private function getGlobalValue(string $field, string $group = self::DEFAULT_PATH_GROUP): ?string
+    {
+        return $this->scopeConfig->getValue(sprintf($this->pathPattern, $group, $field));
     }
 
     public function getApiUrl(): ?string
@@ -89,7 +129,7 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
     {
         return $this->isCloudflareApplication()
             && $this->isActive()
-            && !empty($this->getZoneId())
+            && ($this->getAccountId() !== '' || !empty($this->getZoneId()))
             && !empty($this->getApiToken());
     }
 
@@ -140,17 +180,11 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
 
     public function getWorkerDebug(): bool
     {
-        return (bool) $this->getValue(self::KEY_CONFIG_DEBUG, self::WORKER_PATH_GROUP);
+        return (bool) $this->getGlobalValue(self::KEY_CONFIG_DEBUG, self::WORKER_PATH_GROUP);
     }
 
     public function getWorkerTtl(): int
     {
-        $override = $this->getValue('default_ttl', self::WORKER_PATH_GROUP);
-
-        if ($override !== null && $override !== '') {
-            return (int) $override;
-        }
-
         $globalTtl = $this->scopeConfig->getValue(PageCacheConfig::XML_PAGECACHE_TTL);
 
         if ($globalTtl === null || $globalTtl === '') {
@@ -162,7 +196,7 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
 
     public function getWorkerHfpTtl(): int
     {
-        $value = $this->getValue('hfp_ttl', self::WORKER_PATH_GROUP);
+        $value = $this->getGlobalValue('hfp_ttl', self::WORKER_PATH_GROUP);
 
         if ($value !== null && $value !== '') {
             return (int) $value;
@@ -178,7 +212,18 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
 
     public function getWorkerBypassPaths(): string
     {
-        return (string) ($this->getValue('bypass_paths', self::WORKER_PATH_GROUP) ?: '');
+        return $this->getBypassPaths(self::WORKER_PATH_GROUP);
+    }
+
+    public function getWorkerRouteBypassPaths(): string
+    {
+        return $this->getBypassPaths('worker_routes');
+    }
+
+    private function getBypassPaths(string $group): string
+    {
+        $paths = (string) $this->getGlobalValue('bypass_paths', $group);
+        return str_replace(["\r\n", "\r", "\n"], ',', $paths);
     }
 
     /**

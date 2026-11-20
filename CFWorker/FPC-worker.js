@@ -132,7 +132,6 @@ function buildConfig(env) {
         debug:       env.DEBUG === 'true',
         defaultTtl:  parseInt(env.DEFAULT_TTL || '86400', 10),
         hfpTtl:      parseInt(env.HFP_TTL || '120', 10),
-        adminPath:   env.ADMIN_PATH || 'admin',
         bypassPaths: (env.BYPASS_PATHS || '').split(',').map(s => s.trim()).filter(Boolean),
     };
 }
@@ -177,9 +176,6 @@ function shouldBypassPath(pathname, config) {
     for (const seg of STATIC_BYPASS) {
         if (lower.includes(seg)) return true;
     }
-
-    // Admin path
-    if (lower.includes('/' + config.adminPath)) return true;
 
     // Static files — CF CDN handles natively (VCL line 91-93)
     if (/^\/(pub\/)?(media|static)\//.test(lower)) return true;

@@ -3,7 +3,7 @@
 Use Cloudflare as your Magento 2 full-page cache and image optimization CDN.
 
 [![Latest Version](https://img.shields.io/packagist/v/studioraz/magento2-cloudflare.svg)](https://packagist.org/packages/studioraz/magento2-cloudflare)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENCE)
 
 ---
 
@@ -14,8 +14,8 @@ Use Cloudflare as your Magento 2 full-page cache and image optimization CDN.
 3. [Prerequisites](#prerequisites)
 4. [Installation](#installation)
 5. [Configuration](#configuration)
-    - [General Settings (Image Optimization)](#general-settings-image-optimization)
-    - [Cache (FPC) Settings](#cache-fpc-settings)
+    - [Cloudflare Images](#cloudflare-images)
+    - [Full Page Cache Settings](#cloudflare-cache)
 6. [How It Works](#how-it-works)
 7. [Deploying the Cloudflare Worker](#deploying-the-cloudflare-worker)
     - [Deployment Steps](#deployment-steps)
@@ -30,13 +30,7 @@ Use Cloudflare as your Magento 2 full-page cache and image optimization CDN.
 
 ## Overview
 
-Magento's built-in full-page cache and Varnish setups require significant server-side infrastructure to manage, scale, and keep in sync with content changes. Image optimization typically adds another layer of complexity with local cache directories and third-party services.
-
-This module replaces all of that with [Cloudflare](https://www.cloudflare.com/):
-
-1. **Full-Page Cache (FPC)** -- use Cloudflare's global CDN as a drop-in replacement for Varnish or the built-in FPC. A bundled Cloudflare Worker handles caching logic at the edge, replicating Magento's Varnish behavior without requiring you to manage Varnish servers.
-
-2. **Image Optimization** -- automatically rewrite image URLs to Cloudflare's `/cdn-cgi/image/` endpoint. Images are resized, converted to modern formats (WebP, AVIF), and served from the edge -- no local image cache needed.
+The module lets store administrators deploy and manage Cloudflare full-page caching from Magento Admin. Cloudflare serves cached storefront pages closer to shoppers, and Magento clears affected pages when store content changes. The module can also serve resized and optimized storefront images through Cloudflare.
 
 Developed and maintained by [Studio Raz](https://studioraz.co.il/) and released as open-source for the Magento community.
 
@@ -46,8 +40,9 @@ Developed and maintained by [Studio Raz](https://studioraz.co.il/) and released 
 
 ### Full-Page Cache
 
-- Use Cloudflare as a selectable caching application alongside Built-in and Varnish
-- Smart cache invalidation -- only affected pages are purged when content changes, not the entire cache
+- Test API credentials and deploy one Worker to selected zones from Magento Admin.
+- Switch to Cloudflare CDN after a successful deployment and return to a configured Varnish installation after deleting the Worker.
+- Purge affected pages by tag when store content changes.
 - Automatic cleanup of 50+ marketing/tracking query parameters (UTM, Facebook, Google Ads, etc.) to improve cache hit rates
 - GraphQL cache support with proper cache key handling
 - Configurable TTL, bypass paths, and debug headers
@@ -69,8 +64,8 @@ Developed and maintained by [Studio Raz](https://studioraz.co.il/) and released 
 ### Cloudflare
 
 - A Cloudflare account with your domain proxied through Cloudflare (orange cloud icon enabled)
-- **For FPC:** A [Cloudflare Workers](https://workers.cloudflare.com/) subscription. The free tier allows 100,000 requests/day; the paid plan ($5/month) includes 10 million requests/month.
-- **For Image Optimization:** [Cloudflare Images](https://developers.cloudflare.com/images/) is available on all plans. The free tier includes 5,000 unique transformations/month. For higher volumes, the paid plan costs $0.50 per 1,000 unique transformations.
+- [Cloudflare Workers](https://workers.cloudflare.com/) for full-page caching.
+- [Cloudflare image transformations](https://developers.cloudflare.com/images/) enabled for image optimization.
 - A manually created Cloudflare Account API Token or User API Token with Workers Scripts Edit on the account and Zone Read, Workers Routes Edit, and Cache Purge on its zones.
 
 ### Magento
@@ -78,7 +73,7 @@ Developed and maintained by [Studio Raz](https://studioraz.co.il/) and released 
 | Requirement | Version |
 |---|---|
 | PHP | `^8.1` |
-| Magento 2 / `magento/framework` | `~103.0` |
+| Magento 2 / `magento/framework` | `^103.0` |
 
 ---
 
@@ -126,41 +121,31 @@ The **General** group is available at the Default, Website, and Store View scope
 
 ### Cloudflare Cache
 
-These settings are scoped to **Default / Website** (not Store View).
+*Admin panel — Stores → Configuration → Studio Raz → Cloudflare Cache → Full Page Cache*
+
+Set credentials, the Worker name, zone selection, and Worker routes in **Default Config**. Debug and Purge Configuration are also available at the Website scope.
 
 | Field | Default | Description |
 |---|---|---|
-| Enabled | No | Enable Cloudflare FPC cache management. |
-| Account ID | -- | Cloudflare Account ID from the dashboard Overview page. |
-| API Token | -- | Cloudflare account or user token for deployment, routes, and purge. Stored encrypted. |
+| Account ID | Not set | Cloudflare Account ID from the dashboard. |
+| API Token | Not set | Cloudflare account or user token for deployment, routes, and purge. Stored encrypted. |
 | Worker Name | `magento-fpc` | Name of the shared Worker. Choose it before the first deployment. |
+| Worker Management | All accessible zones | Lists zones discovered with the saved credentials and provides the deployment controls. |
 | Debug | No | Enables module diagnostics in `var/log/srcloudflarecache.log`. Credentials are excluded. |
 
-**Test Credentials** loads the zone IDs and domains. **Select All** is enabled by default and includes newly discovered zones. Clear individual checkboxes and click **Save Config** to update the selection. Magento keeps purging each deselected zone while its deployment records still contain managed routes. On **Start Deploy**, Magento removes those routes before updating the shared Worker and configuring routes for the selected zones. Purges for a deselected zone stop once Magento completes its route cleanup. Manually added or edited routes remain in Cloudflare. If all zones are deselected, **Start Deploy** only removes managed routes. **Active deployment** shows the version ID and deployment time from Cloudflare whenever the page opens and after **Start Deploy** completes.
+**Test Credentials** loads the zone IDs and domains and checks Cache Purge permissions for the saved selection. **Select All** is enabled by default and includes newly discovered zones. Save changes to the account, token, or zone selection and test the credentials before deploying to unverified zones.
 
-> **Important:** You must also select Cloudflare as the FPC application. Go to **Stores > Configuration > Advanced > System > Full Page Cache > Caching Application** and select **Cloudflare**.
+**Start Deploy** switches the global caching application to **Cloudflare CDN** in `app/etc/env.php` after the Worker deployment and all selected routes succeed. **Delete Worker** switches from **Cloudflare CDN** to **Varnish** after Cloudflare confirms the Worker is absent. The switch requires permission to edit Magento System configuration and a writable `app/etc/env.php`. Varnish needs to be configured in the target environment before switching back.
+
+After either switch, Magento updates its system configuration hash automatically. If Magento reports existing unsynchronized configuration changes, run the configuration import before retrying.
+
+While Cloudflare CDN is active, Magento keeps purging deselected zones until route cleanup confirms that their routes no longer invoke the Worker. When the last zone is cleared, **Start Deploy** switches to Varnish after successful route cleanup. **Active deployment** shows the version ID and deployment time whenever the page opens and after a Worker operation.
+
+If **Test Credentials** reports an unavailable Zone ID, verify in Cloudflare that the zone was deleted. After confirmation, use **Forget deleted zone** on that row to remove its saved selection, route records, and purge jobs from Magento. The shared Worker keeps serving the other zones. If the zone still exists, restore the token's access to it.
 
 ## How It Works
 
-### Full-Page Cache Flow
-
-When Cloudflare is selected as the caching application, the module adds cache tags to every page response. A Cloudflare Worker (deployed on your Cloudflare account) intercepts incoming requests before they reach your server and handles caching decisions at the edge -- just like Varnish would, but without any server-side infrastructure.
-
-```
-Browser ──> Cloudflare CDN ──> Worker (cache check) ──> Origin (Magento)
-                                                     <── Response + Cache-Tag headers
-        <── Cached response (on subsequent requests)
-```
-
-Cloudflare Workers Routes bypass Worker execution for Magento Admin. The Worker skips caching for checkout, customer account pages, and other requests that meet its bypass rules. It also strips marketing query parameters (UTM, Facebook, Google Ads, etc.) so that `?utm_source=...` variants don't create duplicate cache entries.
-
-### Automatic Cache Purging
-
-When content changes in Magento -- saving a product, updating a category, flushing cache from the admin -- the module calls the Cloudflare API to purge only the affected pages by their cache tags. Unrelated cached pages remain warm.
-
-### Image Optimization Flow
-
-When image optimization is enabled, the module rewrites image URLs to route through Cloudflare's `/cdn-cgi/image/` endpoint. Cloudflare automatically resizes, compresses, and converts images to the best format the browser supports -- all at the edge, with no processing on your server.
+Cloudflare serves cached storefront pages and sends cache misses to Magento. Magento tags cacheable responses and uses those tags to clear affected pages when store content changes. The Worker passes through private pages such as checkout and customer account pages. The separate image optimization feature lets Cloudflare serve storefront images in a size and format appropriate for the shopper's browser.
 
 ---
 
@@ -170,10 +155,10 @@ The module includes a Cloudflare Worker script (`CFWorker/FPC-worker.js`) that m
 
 ### Deployment Steps
 
-1. Create an account or user API token in Cloudflare with the required permissions. Save it with the **Account ID** under **Cloudflare Cache > Cache (FPC)** in Default Config.
-2. Click **Test Credentials** to verify access and inspect the zones. If needed, select a subset and save the configuration before deploying.
+1. Create an account or user API token in Cloudflare with the required permissions. Save it with the **Account ID** under **Cloudflare Cache > Full Page Cache** in Default Config.
+2. Click **Test Credentials** to verify access and inspect the zones. To deploy to a subset, save the selection and run the test again.
 3. Set the **Worker Configuration** values, add any extra exclusions under **Worker Routes**, and save the configuration.
-4. Click **Start Deploy** to upload the Worker and configure routes. Check the result for each zone and review the active version.
+4. Click **Start Deploy** to configure the Worker and activate Cloudflare CDN. Check the result for each zone and review the active version and current cache engine.
 
 ### Worker Environment Variables
 
@@ -212,7 +197,7 @@ The Worker also has internal cache-bypass rules for requests it receives.
 
 ## Automatic Cache Purging
 
-The module sends the same Magento cache tags to every discovered Cloudflare zone. Each zone purges matching content and has its own result and retry state in the queue.
+The module sends the same Magento cache tags to the selected zones and to deselected zones whose routes still invoke the Worker. Each zone purges matching content and has its own result and retry state in the queue.
 
 ### What triggers a cache purge
 
@@ -265,7 +250,6 @@ When enabled, Magento's local image cache generation is skipped entirely. Images
 
 **Cache is not being purged after product/category save**
 
-- Ensure **Cache > Enabled** is set to **Yes**.
 - Use **Test Credentials** to verify the account and zones. Make sure the API token has **Cache Purge** permission on each zone.
 - Confirm that Cloudflare is selected as the caching application in **Stores > Configuration > Advanced > System > Full Page Cache > Caching Application**.
 - Enable **Cache > Debug** and inspect `var/log/srcloudflarecache.log` for API errors.
@@ -279,7 +263,7 @@ When enabled, Magento's local image cache generation is skipped entirely. Images
 
 **Worker debug headers missing**
 
--  Set the `DEBUG` environment variable to `true` directly in the Cloudflare Worker settings.
+- Enable **Worker Configuration → Worker Debug Mode**, save the configuration, and run **Start Deploy**.
 
 **Images are served in original format instead of WebP/AVIF**
 
@@ -305,4 +289,4 @@ Please follow the [Magento 2 coding standards](https://developer.adobe.com/comme
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [MIT License](LICENCE).

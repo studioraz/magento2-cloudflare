@@ -8,9 +8,11 @@ use Magento\Config\Controller\Adminhtml\System\Config\Save;
 use Magento\Config\Model\Config\Reader\Source\Deployed\SettingChecker;
 use Magento\Config\Model\Config\Structure\ElementVisibilityInterface;
 use Magento\Framework\AuthorizationInterface;
+use Magento\Framework\Exception\LocalizedException;
 use Magento\PageCache\Model\Config as PageCacheConfig;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SR\Cloudflare\Config\CacheConfig;
 use SR\Cloudflare\Plugin\Adminhtml\FullPageCacheFields;
 
 class FullPageCacheFieldsTest extends TestCase
@@ -58,7 +60,7 @@ class FullPageCacheFieldsTest extends TestCase
 
         $result = $plugin->afterGetConfigData($save, $config);
         self::assertSame(
-            ['caching_application' => ['value' => '3']],
+            ['caching_application' => ['value' => '2']],
             $result['groups']['cache']['groups']['magento_cache']['fields']
         );
 
@@ -74,6 +76,28 @@ class FullPageCacheFieldsTest extends TestCase
         self::assertSame($config, $this->createPlugin()->afterGetConfigData($this->createMock(Save::class), $config));
     }
 
+    #[DataProvider('applicationSections')]
+    public function testRejectsManualCloudflareActivation(string $section): void
+    {
+        $config = $section === 'system'
+            ? ['section' => $section, 'groups' => ['full_page_cache' => ['fields' => []]]]
+            : $this->makeConfig();
+        if ($section === 'system') {
+            $config['groups']['full_page_cache']['fields']['caching_application'] = ['value' => '3'];
+        } else {
+            $config['groups']['cache']['groups']['magento_cache']['fields']['caching_application'] = ['value' => '3'];
+        }
+
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Use Start Deploy or Delete Worker');
+        $this->createPlugin()->afterGetConfigData($this->createMock(Save::class), $config);
+    }
+
+    public static function applicationSections(): array
+    {
+        return [['system'], ['srcloudflare']];
+    }
+
     private function makeConfig(): array
     {
         return [
@@ -81,7 +105,7 @@ class FullPageCacheFieldsTest extends TestCase
             'groups' => ['cache' => [
                 'fields' => ['active' => ['value' => '1']],
                 'groups' => ['magento_cache' => ['fields' => [
-                    'caching_application' => ['value' => '3'],
+                    'caching_application' => ['value' => '2'],
                     'ttl' => ['value' => '900'],
                 ]]],
             ]],
@@ -95,6 +119,6 @@ class FullPageCacheFieldsTest extends TestCase
         $checker = $this->createMock(SettingChecker::class);
         $checker->method('isReadOnly')->willReturnCallback(static fn(string $path): bool => $path === $lockedPath);
 
-        return new FullPageCacheFields($authorization, $checker);
+        return new FullPageCacheFields($authorization, $checker, $this->createMock(CacheConfig::class));
     }
 }

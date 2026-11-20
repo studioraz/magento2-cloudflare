@@ -46,12 +46,12 @@
 
             <group id="cache" translate="label" type="text" sortOrder="10"
                    showInDefault="1" showInWebsite="1" showInStore="0">
-                <label>Cache (FPC)</label>
+                <label>Full Page Cache</label>
 
-                <field id="active" translate="label" sortOrder="10" type="select"
-                       showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
-                    <label>Enabled</label>
-                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                <field id="current_cache_engine" translate="label" sortOrder="1" type="label"
+                       showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Current Cache Engine</label>
+                    <frontend_model>SR\Cloudflare\Block\Adminhtml\System\Config\CurrentCacheEngine</frontend_model>
                 </field>
 
                 <field id="account_id" translate="label comment" sortOrder="25" type="text"
@@ -83,7 +83,7 @@
                 <field id="worker_management" translate="label comment" sortOrder="34" type="text"
                        showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Worker Management</label>
-                    <comment>Select zones for route configuration and cache purges, then save the configuration. All accessible zones are selected by default. Magento keeps purging deselected zones until Start Deploy clears their managed routes.</comment>
+                    <comment>Save the credentials and zone selection, then run Test Credentials. Start Deploy switches Magento to Cloudflare CDN after configuring the Worker and its routes. Delete Worker switches Cloudflare CDN back to Varnish.</comment>
                     <frontend_model>SR\Cloudflare\Block\Adminhtml\System\Config\Worker</frontend_model>
                     <backend_model>SR\Cloudflare\Model\System\Config\Backend\ZoneSelection</backend_model>
                     <config_path>srcloudflare/cache/zone_selection</config_path>
@@ -94,9 +94,6 @@
                     <label>Debug</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                     <comment><![CDATA[Enables module diagnostics in <code>var/log/srcloudflarecache.log</code>. Credentials are excluded.]]></comment>
-                    <depends>
-                        <field id="active">1</field>
-                    </depends>
                 </field>
 
                 <group id="magento_cache" translate="label" type="text" sortOrder="105"
@@ -107,7 +104,7 @@
                     <field id="caching_application" extends="system/full_page_cache/caching_application"
                            translate="label comment" sortOrder="1" showInDefault="1" showInWebsite="0" showInStore="0"
                            canRestore="1">
-                        <comment>Select the global full-page cache application used by Magento.</comment>
+                        <comment>Select the global full-page cache application. Use Start Deploy and Delete Worker to switch Cloudflare CDN on and off.</comment>
                         <config_path>system/full_page_cache/caching_application</config_path>
                     </field>
                     <field id="ttl" extends="system/full_page_cache/ttl"
@@ -119,10 +116,6 @@
                 <group id="purge" translate="label" type="text" sortOrder="110"
                        showInDefault="1" showInWebsite="1" showInStore="0">
                     <label>Purge Configuration</label>
-                    <depends>
-                        <field id="srcloudflare/cache/active">1</field>
-                    </depends>
-
                     <field id="async_purge" translate="label comment" sortOrder="110" type="select"
                            showInDefault="1" showInWebsite="1" showInStore="0" canRestore="1">
                         <label>Async Purge Queue</label>
@@ -137,7 +130,6 @@
                         <comment><![CDATA[Maximum Cloudflare purge operations per request. Cloudflare allows 100 for tag, hostname, prefix, and purge-everything requests; larger values are capped to 100.]]></comment>
                         <config_path>srcloudflare/cache/purge_batch_size</config_path>
                         <depends>
-                            <field id="srcloudflare/cache/active">1</field>
                             <field id="async_purge">1</field>
                         </depends>
                     </field>
@@ -148,7 +140,6 @@
                         <comment><![CDATA[Default 25 matches the Cloudflare Pro purge bucket size. Cron runs every minute.]]></comment>
                         <config_path>srcloudflare/cache/purge_max_requests_per_cron</config_path>
                         <depends>
-                            <field id="srcloudflare/cache/active">1</field>
                             <field id="async_purge">1</field>
                         </depends>
                     </field>
@@ -159,7 +150,6 @@
                         <comment><![CDATA[Queue rows are marked failed after this many unsuccessful API attempts.]]></comment>
                         <config_path>srcloudflare/cache/purge_max_attempts</config_path>
                         <depends>
-                            <field id="srcloudflare/cache/active">1</field>
                             <field id="async_purge">1</field>
                         </depends>
                     </field>

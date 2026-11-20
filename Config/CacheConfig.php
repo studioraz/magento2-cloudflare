@@ -15,6 +15,7 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
     public const EXT_ALIAS = 'srcloudflare';
     public const DEFAULT_PATH_GROUP = 'cache';
     public const WORKER_PATH_GROUP = 'worker';
+    public const ZONE_SELECTION_PATH = 'srcloudflare/cache/zone_selection';
 
     /**
      * Cloudflare caching application type for system/full_page_cache/caching_application
@@ -60,11 +61,6 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
     public function isPageCacheEnabled(): bool
     {
         return $this->cacheState->isEnabled(Type::TYPE_IDENTIFIER);
-    }
-
-    public function isActive(): bool
-    {
-        return (bool) $this->getValue(self::KEY_CONFIG_ACTIVE, self::DEFAULT_PATH_GROUP);
     }
 
     public function getZoneId(): ?string
@@ -128,7 +124,6 @@ class CacheConfig extends \SR\Gateway\Model\Config\Config
     public function isConfigured(): bool
     {
         return $this->isCloudflareApplication()
-            && $this->isActive()
             && ($this->getAccountId() !== '' || !empty($this->getZoneId()))
             && !empty($this->getApiToken());
     }

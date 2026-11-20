@@ -11,7 +11,9 @@ use Magento\Framework\Controller\Result\JsonFactory;
 use SR\Cloudflare\Config\CacheConfig;
 use SR\Cloudflare\Exception\CloudflareApiException;
 use SR\Cloudflare\Model\CloudflareApi;
+use SR\Cloudflare\Model\Worker\CacheEngine;
 use SR\Cloudflare\Model\Worker\Delete as DeleteWorker;
+use SR\Cloudflare\Model\Worker\Deploy as DeployWorker;
 use SR\Cloudflare\Model\ZoneDirectory;
 
 class Status extends Action implements HttpPostActionInterface
@@ -24,7 +26,9 @@ class Status extends Action implements HttpPostActionInterface
         private readonly CacheConfig $config,
         private readonly CloudflareApi $api,
         private readonly ZoneDirectory $zones,
-        private readonly DeleteWorker $deleteWorker
+        private readonly DeleteWorker $deleteWorker,
+        private readonly DeployWorker $deployWorker,
+        private readonly CacheEngine $cacheEngine
     ) {
         parent::__construct($context);
     }
@@ -36,7 +40,15 @@ class Status extends Action implements HttpPostActionInterface
             return $result->setData(['error' => (string) __('Save the Cloudflare Account ID and API token first.')]);
         }
 
-        $data = ['zones' => $this->zones->getSavedZones(), 'canDelete' => $this->deleteWorker->canDelete()];
+        $zones = $this->zones->getSavedZones();
+        $data = [
+            'zones' => $zones,
+            'unavailableZoneIds' => $zones === null ? [] : $this->zones->getUnavailableZoneIds($zones),
+            'canDelete' => $this->deleteWorker->canDelete(),
+            'canDeploy' => $this->deployWorker->canDeploy(),
+            'cacheEngine' => $this->cacheEngine->getLabel(),
+            'isCloudflare' => $this->config->isCloudflareApplication(),
+        ];
         try {
             $data['deployment'] = $this->api->getActiveDeployment();
         } catch (CloudflareApiException $exception) {

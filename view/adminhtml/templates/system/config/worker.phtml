@@ -8,6 +8,7 @@ $zoneField = $block->getZoneField();
      data-verify-url="<?= $escaper->escapeUrl($block->getUrl('srcloudflare/worker/verify')) ?>"
      data-status-url="<?= $escaper->escapeUrl($block->getUrl('srcloudflare/worker/status')) ?>"
      data-deploy-url="<?= $escaper->escapeUrl($block->getUrl('srcloudflare/worker/deploy')) ?>"
+     data-forget-url="<?= $escaper->escapeUrl($block->getUrl('srcloudflare/worker/forgetZone')) ?>"
      data-delete-url="<?= $escaper->escapeUrl($block->getUrl('srcloudflare/worker/delete')) ?>">
     <input type="hidden"
            id="<?= $escaper->escapeHtmlAttr($zoneField->getHtmlId()) ?>"
@@ -18,7 +19,7 @@ $zoneField = $block->getZoneField();
         <button type="button" class="action-default" data-action="verify">
             <span><?= $escaper->escapeHtml(__('Test Credentials')) ?></span>
         </button>
-        <button type="button" class="action-primary" data-action="deploy">
+        <button type="button" class="action-primary" data-action="deploy" disabled>
             <span><?= $escaper->escapeHtml(__('Start Deploy')) ?></span>
         </button>
         <button type="button" class="action-default" data-action="delete" disabled>

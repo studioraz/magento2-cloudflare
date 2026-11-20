@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SR\Cloudflare\Model;
 
+use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\FlagManager;
 use SR\Cloudflare\Config\CacheConfig;
 
@@ -41,11 +42,7 @@ class ZoneDirectory
 
         $selection = $this->config->getSelectedZoneIds();
         $zones = $selection === [] ? [] : $this->getSelectedZones($this->getSavedZones() ?? $this->refresh());
-        if ($selection !== null) {
-            $zones += $this->getZonesWithManagedRoutes();
-        }
-
-        return array_keys($zones);
+        return array_keys($zones + $this->getZonesWithManagedRoutes());
     }
 
     /**
@@ -58,16 +55,39 @@ class ZoneDirectory
         return $selection === null ? $zones : array_intersect_key($zones, array_flip($selection));
     }
 
+    /**
+     * @param array<string, string> $availableZones
+     * @return list<string>
+     */
+    public function getUnavailableZoneIds(array $availableZones): array
+    {
+        $trackedZoneIds = array_keys($this->getZonesWithManagedRoutes());
+        $expectedZoneIds = array_merge($this->config->getSelectedZoneIds() ?? [], $trackedZoneIds);
+        return array_values(array_unique(array_diff($expectedZoneIds, array_keys($availableZones))));
+    }
+
+    /** @param array<string, string> $availableZones */
+    public function assertSelectedZonesAvailable(array $availableZones): void
+    {
+        $unavailableZoneIds = $this->getUnavailableZoneIds($availableZones);
+        if ($unavailableZoneIds !== []) {
+            throw new LocalizedException(__(
+                'The Cloudflare token cannot access the following Zone IDs: %1. Restore access or forget a zone after confirming its deletion.',
+                implode(', ', $unavailableZoneIds)
+            ));
+        }
+        if ($availableZones === []) {
+            throw new LocalizedException(__('No zones are available to this Cloudflare token.'));
+        }
+    }
+
     public function shouldPurgeZone(string $zoneId): bool
     {
         if ($this->config->getAccountId() === '') {
             return true;
         }
 
-        $selection = $this->config->getSelectedZoneIds();
-        return $selection === null
-            || in_array($zoneId, $selection, true)
-            || isset($this->getZonesWithManagedRoutes()[$zoneId]);
+        return in_array($zoneId, $this->getPurgeZoneIds(), true);
     }
 
     public function getDeploymentKey(): string
@@ -78,7 +98,7 @@ class ZoneDirectory
     private function getZonesWithManagedRoutes(): array
     {
         $deployment = $this->flags->getFlagData($this->getDeploymentKey());
-        return array_filter($deployment['routes'] ?? []);
+        return array_filter($deployment['routes'] ?? []) + ($deployment['unmanaged_zones'] ?? []);
     }
 
     private function getKey(): string

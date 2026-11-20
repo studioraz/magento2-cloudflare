@@ -24,22 +24,41 @@ class Deploy
         private readonly Routes $routes,
         private readonly LockManagerInterface $lock,
         private readonly FlagManager $flags,
-        private readonly Json $json
+        private readonly Json $json,
+        private readonly Credentials $credentials,
+        private readonly CacheEngine $cacheEngine
     ) {
+    }
+
+    public function canDeploy(): bool
+    {
+        if (!$this->cacheEngine->isAllowed()) {
+            return false;
+        }
+        $state = $this->flags->getFlagData($this->directory->getDeploymentKey());
+        if (!empty($state['worker_deleted'])) {
+            return false;
+        }
+        if ($this->config->isZoneSelectionEmpty()) {
+            return ($state['worker'] ?? null) === $this->config->getWorkerName();
+        }
+
+        return $this->credentials->canDeploy($this->directory->getSavedZones() ?? []);
     }
 
     public function execute(): array
     {
+        $this->cacheEngine->assertAllowed();
         $workerPath = $this->api->workerPath();
         $key = $this->directory->getDeploymentKey();
-        if (!$this->lock->lock($key, 0)) {
-            throw new LocalizedException(__('A Cloudflare Worker operation is already running for this account.'));
+        if (!$this->lock->lock(CacheEngine::OPERATION_LOCK, 0)) {
+            throw new LocalizedException(__('A Cloudflare Worker operation is already running.'));
         }
 
         try {
             return $this->deploy($workerPath, $key);
         } finally {
-            $this->lock->unlock($key);
+            $this->lock->unlock(CacheEngine::OPERATION_LOCK);
         }
     }
 
@@ -51,13 +70,22 @@ class Deploy
         }
 
         $availableZones = $this->directory->refresh();
-        if ($availableZones === []) {
-            throw new LocalizedException(__('No zones are available to this Cloudflare token.'));
-        }
+        $this->directory->assertSelectedZonesAvailable($availableZones);
         $zones = $this->directory->getSelectedZones($availableZones);
         // An explicit "none" allows cleanup without deploying a new Worker version.
         if ($zones === [] && ($state === [] || !$this->config->isZoneSelectionEmpty())) {
             throw new LocalizedException(__('Select and save at least one available Cloudflare zone before deploying.'));
+        }
+        $wasActive = $this->config->isCloudflareApplication();
+        if ($zones !== [] || $wasActive) {
+            $this->cacheEngine->assertWritable();
+        }
+        if ($zones !== []) {
+            if (!$this->credentials->canDeploy($availableZones)) {
+                throw new LocalizedException(__('Run Test Credentials for the saved account, token and zones before deploying.'));
+            }
+            $this->api->verifyToken();
+            $this->credentials->checkPurge($zones);
         }
 
         $worker = $this->config->getWorkerName();
@@ -94,11 +122,23 @@ class Deploy
             return $result + ['error' => (string) __('Retry Start Deploy after resolving the route removal errors.')];
         }
         if ($zones === []) {
-            return $result + ['message' => (string) __('No zones selected. Magento-managed route cleanup complete.')];
+            if (!empty($state['unmanaged_zones'])) {
+                return $result + [
+                    'error' => (string) __('Remove the remaining manual routes or use Delete Worker to switch to Varnish.'),
+                ];
+            }
+            $this->cacheEngine->useVarnish();
+            return $result + ['message' => (string) ($wasActive
+                ? __('No zones selected. Magento switched to Varnish.')
+                : __('No zones selected. Magento-managed route cleanup complete.'))];
         }
 
         // Record the attempt before uploading so an interrupted request can be retried.
         $state += ['worker' => $worker, 'routes' => []];
+        $originalRoutes = $state['routes'];
+        if (!$wasActive || empty($state['cache_namespace'])) {
+            $state['cache_namespace'] = bin2hex(random_bytes(16));
+        }
         $this->flags->saveFlag($key, $state);
 
         // Keep Admin traffic off the Worker when switching to a version that relies on routes.
@@ -122,12 +162,25 @@ class Deploy
                 ];
             }
         }
-        $this->upload($workerPath);
+        $this->upload($workerPath, $state['cache_namespace']);
+        if ($this->api->getActiveDeployment() === null) {
+            throw new LocalizedException(__('Cloudflare has not confirmed an active Worker deployment. Retry Start Deploy.'));
+        }
 
         $failed = false;
         foreach ($zones as $id => $domain) {
             try {
                 $this->applyRoutes($id, $plans[$id], $existing[$id], $state, $key);
+                unset($state['unmanaged_zones'][$id]);
+                foreach ($existing[$id] as $route) {
+                    if (($route['script'] ?? null) === $worker
+                        && !$this->routes->isOwned($route, $originalRoutes[$id] ?? [])
+                    ) {
+                        $state['unmanaged_zones'][$id] = $domain;
+                        break;
+                    }
+                }
+                $this->flags->saveFlag($key, $state);
                 $result['results'][$domain] = (string) __('Routes configured.');
             } catch (CloudflareApiException $exception) {
                 $failed = true;
@@ -135,11 +188,60 @@ class Deploy
             }
         }
 
-        return $result + [
-            'message' => (string) ($failed
-                ? __('Worker uploaded. Retry deployment to finish configuring the failed zones.')
-                : __('Worker deployed and routes configured.')),
-        ];
+        if (!$failed) {
+            try {
+                $this->cacheEngine->enableCloudflare();
+                return $result + ['message' => (string) __('Worker deployed. Magento is using Cloudflare CDN.')];
+            } catch (LocalizedException $exception) {
+                $result['error'] = $exception->getMessage();
+            }
+        }
+
+        if (!$wasActive && !$this->config->isCloudflareApplication()) {
+            foreach ($zones as $id => $domain) {
+                try {
+                    if ($this->restoreWorkerRoutes($id, $existing[$id], $originalRoutes[$id] ?? [], $state, $key)) {
+                        $result['results'][$domain] .= ' ' . __('New Worker bindings rolled back.');
+                    }
+                } catch (CloudflareApiException $exception) {
+                    $result['results'][$domain] .= ' ' . __('Could not roll back Worker bindings. %1', $exception->getMessage());
+                }
+            }
+        }
+
+        return $result + ['error' => (string) __('Retry deployment to finish configuring the failed zones.')];
+    }
+
+    private function restoreWorkerRoutes(
+        string $zone,
+        array $before,
+        array $ownedBefore,
+        array &$state,
+        string $key
+    ): bool
+    {
+        $changed = array_filter(
+            $state['routes'][$zone] ?? [],
+            static fn(array $route, string|int $id): bool => isset($route['script']) && $route !== ($ownedBefore[$id] ?? null),
+            ARRAY_FILTER_USE_BOTH
+        );
+        if ($changed === []) {
+            return false;
+        }
+
+        $existing = $this->routes->getExisting($zone);
+        foreach ($changed as $id => $route) {
+            $pattern = $route['pattern'];
+            if (!isset($existing[$pattern]) || !$this->routes->isOwned($existing[$pattern], [$id => $route])) {
+                continue;
+            }
+            if (isset($before[$pattern])) {
+                $this->ensureRoute($zone, $pattern, $before[$pattern]['script'] ?? null, $existing[$pattern], $state, $key);
+            } else {
+                $this->routes->removeObsolete($zone, [], [$pattern => $existing[$pattern]], $state, $key);
+            }
+        }
+        return true;
     }
 
     private function removeDeselectedRoutes(array $availableZones, array &$state, string $key, array &$results): bool
@@ -149,9 +251,10 @@ class Deploy
             return true;
         }
 
-        $deselectedRoutes = array_diff_key(array_filter($state['routes'] ?? []), array_flip($selection));
+        $trackedZones = array_filter($state['routes'] ?? []) + ($state['unmanaged_zones'] ?? []);
+        $deselectedRoutes = array_diff_key($trackedZones, array_flip($selection));
         $complete = true;
-        foreach ($deselectedRoutes as $id => $owned) {
+        foreach (array_keys($deselectedRoutes) as $id) {
             $domain = $availableZones[$id] ?? null;
             if ($domain === null) {
                 $results[$id] = (string) __('Zone is unavailable to this token. Restore access to remove its routes.');
@@ -161,18 +264,21 @@ class Deploy
 
             try {
                 $existing = $this->routes->getExisting($id);
-                $this->applyRoutes($id, [], $existing, $state, $key);
+                $owned = $state['routes'][$id] ?? [];
+                $this->routes->removeObsolete($id, [], $existing, $state, $key);
                 unset($state['routes'][$id]);
-                $this->flags->saveFlag($key, $state);
+                unset($state['unmanaged_zones'][$id]);
                 $results[$domain] = (string) __('Magento-managed routes removed.');
                 foreach ($existing as $route) {
                     if (($route['script'] ?? null) === $state['worker'] && !$this->routes->isOwned($route, $owned)) {
+                        $state['unmanaged_zones'][$id] = $domain;
                         $results[$domain] = (string) __(
                             'Magento-managed routes removed. An unmanaged route still invokes this Worker.'
                         );
                         break;
                     }
                 }
+                $this->flags->saveFlag($key, $state);
             } catch (CloudflareApiException $exception) {
                 $results[$domain] = (string) __(
                     'Could not remove Magento-managed routes. %1',
@@ -185,13 +291,14 @@ class Deploy
         return $complete;
     }
 
-    private function upload(string $workerPath): void
+    private function upload(string $workerPath, string $cacheNamespace): void
     {
         $variables = [
             'DEBUG' => $this->config->getWorkerDebug() ? 'true' : 'false',
             'DEFAULT_TTL' => (string) $this->config->getWorkerTtl(),
             'HFP_TTL' => (string) $this->config->getWorkerHfpTtl(),
             'BYPASS_PATHS' => $this->config->getWorkerBypassPaths(),
+            'MAGENTO_CACHE_NAMESPACE' => $cacheNamespace,
         ];
         $module = 'FPC-worker.js';
         $metadata = $this->json->serialize([

@@ -13,6 +13,7 @@ use SR\Cloudflare\Config\CacheConfig;
 use SR\Cloudflare\Exception\CloudflareApiException;
 use SR\Cloudflare\Model\CloudflareApi;
 use SR\Cloudflare\Model\Worker\Delete;
+use SR\Cloudflare\Model\Worker\CacheEngine;
 use SR\Cloudflare\Model\Worker\Routes;
 use SR\Cloudflare\Model\ZoneDirectory;
 
@@ -57,7 +58,14 @@ class DeleteTest extends TestCase
                 return $response;
             }
         );
-        $delete = $this->createDelete($api, $state);
+        $cacheEngine = $this->createMock(CacheEngine::class);
+        $cacheEngine->method('isAllowed')->willReturn(true);
+        $cacheEngine->expects(self::exactly(2))->method('useVarnish')->willReturnCallback(
+            static function () use (&$state): void {
+                self::assertTrue($state['worker_deleted']);
+            }
+        );
+        $delete = $this->createDelete($api, $state, $cacheEngine);
 
         self::assertTrue($delete->canDelete());
         $first = $delete->execute(self::ACCOUNT, self::WORKER);
@@ -80,6 +88,29 @@ class DeleteTest extends TestCase
             ->willThrowException(new CloudflareApiException(__('Worker not found.'), 404));
 
         self::assertArrayHasKey('message', $this->createDelete($api, $state)->execute(self::ACCOUNT, self::WORKER));
+        self::assertSame([], $state);
+    }
+
+    public function testChecksWorkerAbsenceAfterDeleteTimeoutBeforeSwitching(): void
+    {
+        $state = ['worker' => self::WORKER, 'routes' => []];
+        $api = $this->createMock(CloudflareApi::class);
+        $api->method('workerPath')->willReturn(self::WORKER_PATH);
+        $api->expects(self::exactly(2))->method('request')->willReturnCallback(
+            static function (string $method, string $path): never {
+                if ($method === 'DELETE') {
+                    self::assertSame(self::WORKER_PATH, $path);
+                    throw new CloudflareApiException(__('Connection timed out.'));
+                }
+                self::assertSame('GET', $method);
+                self::assertSame(self::WORKER_PATH . '/settings', $path);
+                throw new CloudflareApiException(__('Worker not found.'), 404);
+            }
+        );
+        $engine = $this->createMock(CacheEngine::class);
+        $engine->expects(self::once())->method('useVarnish');
+
+        self::assertArrayHasKey('message', $this->createDelete($api, $state, $engine)->execute(self::ACCOUNT, self::WORKER));
         self::assertSame([], $state);
     }
 
@@ -120,14 +151,14 @@ class DeleteTest extends TestCase
         ];
     }
 
-    private function createDelete(CloudflareApi $api, array &$state): Delete
+    private function createDelete(CloudflareApi $api, array &$state, ?CacheEngine $cacheEngine = null): Delete
     {
         $config = $this->createMock(CacheConfig::class);
         $config->method('getAccountId')->willReturn(self::ACCOUNT);
         $config->method('getWorkerName')->willReturn(self::WORKER);
         $directory = new ZoneDirectory($config, $api, $this->createMock(FlagManager::class));
         $lock = $this->createMock(LockManagerInterface::class);
-        $lock->method('lock')->with($directory->getDeploymentKey(), 0)->willReturn(true);
+        $lock->method('lock')->with(CacheEngine::OPERATION_LOCK, 0)->willReturn(true);
         $flags = $this->createMock(FlagManager::class);
         $flags->method('getFlagData')->with($directory->getDeploymentKey())->willReturnCallback(
             static function () use (&$state): array {
@@ -145,6 +176,14 @@ class DeleteTest extends TestCase
             }
         );
 
-        return new Delete($api, $config, $directory, new Routes($api, $flags), $lock, $flags);
+        return new Delete(
+            $api,
+            $config,
+            $directory,
+            new Routes($api, $flags),
+            $lock,
+            $flags,
+            $cacheEngine ?? $this->createMock(CacheEngine::class)
+        );
     }
 }

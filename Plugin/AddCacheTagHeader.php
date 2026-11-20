@@ -52,6 +52,9 @@ class AddCacheTagHeader
         if (!$this->config->isCloudflareApplication()) {
             return;
         }
+        if ($this->config->isPageCacheEnabled()) {
+            $response->setHeader('X-SR-Cloudflare-FPC', '1', true);
+        }
 
         $magentoTags = $response->getHeader('X-Magento-Tags');
 

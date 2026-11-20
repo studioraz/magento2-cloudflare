@@ -20,25 +20,27 @@ class Delete
         private readonly ZoneDirectory $directory,
         private readonly Routes $routes,
         private readonly LockManagerInterface $lock,
-        private readonly FlagManager $flags
+        private readonly FlagManager $flags,
+        private readonly CacheEngine $cacheEngine
     ) {
     }
 
     public function canDelete(): bool
     {
         $state = $this->flags->getFlagData($this->directory->getDeploymentKey());
-        return ($state['worker'] ?? null) === $this->config->getWorkerName();
+        return $this->cacheEngine->isAllowed() && ($state['worker'] ?? null) === $this->config->getWorkerName();
     }
 
     public function execute(string $accountId, string $worker): array
     {
+        $this->cacheEngine->assertAllowed();
         if ($accountId !== $this->config->getAccountId() || $worker !== $this->config->getWorkerName()) {
             throw new LocalizedException(__('The Cloudflare account or Worker changed. Reload the page and try again.'));
         }
         $workerPath = $this->api->workerPath();
         $key = $this->directory->getDeploymentKey();
-        if (!$this->lock->lock($key, 0)) {
-            throw new LocalizedException(__('A Cloudflare Worker operation is already running for this account.'));
+        if (!$this->lock->lock(CacheEngine::OPERATION_LOCK, 0)) {
+            throw new LocalizedException(__('A Cloudflare Worker operation is already running.'));
         }
 
         try {
@@ -46,9 +48,12 @@ class Delete
             if (($state['worker'] ?? null) !== $worker) {
                 throw new LocalizedException(__('Magento can only delete a Worker it manages.'));
             }
+            if ($this->config->isCloudflareApplication()) {
+                $this->cacheEngine->assertWritable();
+            }
             return $this->deleteWorker($workerPath, $state, $key);
         } finally {
-            $this->lock->unlock($key);
+            $this->lock->unlock(CacheEngine::OPERATION_LOCK);
         }
     }
 
@@ -59,12 +64,21 @@ class Delete
             try {
                 $this->api->request('DELETE', $workerPath);
             } catch (CloudflareApiException $exception) {
-                if ($exception->getCode() !== 404) {
+                if ($exception->getCode() !== 404 && !$this->isAbsentAfterUncertainDelete($workerPath, $exception)) {
                     throw $exception;
                 }
             }
             $state['worker_deleted'] = true;
             $this->flags->saveFlag($key, $state);
+        }
+
+        try {
+            $this->cacheEngine->useVarnish();
+        } catch (LocalizedException $exception) {
+            throw new LocalizedException(
+                __('Worker deleted. Retry Delete Worker to finish switching Magento to Varnish. %1', $exception->getMessage()),
+                $exception
+            );
         }
 
         $errors = [];
@@ -88,5 +102,21 @@ class Delete
 
         $this->flags->deleteFlag($key);
         return ['message' => (string) __('Worker and Magento-managed routes deleted.')];
+    }
+
+    private function isAbsentAfterUncertainDelete(string $workerPath, CloudflareApiException $exception): bool
+    {
+        $status = $exception->getCode();
+        if ($status !== 0 && $status < 500) {
+            return false;
+        }
+
+        try {
+            $this->api->request('GET', $workerPath . '/settings');
+        } catch (CloudflareApiException $verification) {
+            return $verification->getCode() === 404;
+        }
+
+        return false;
     }
 }

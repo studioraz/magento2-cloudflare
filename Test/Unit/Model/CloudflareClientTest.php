@@ -25,7 +25,8 @@ class CloudflareClientTest extends TestCase
     public function testPurgesSelectedZonesAndZonesWithManagedRoutes(
         ?string $selection,
         array $managedRoutes,
-        array $expectedZoneIds
+        array $expectedZoneIds,
+        array $availableZoneIds = [self::FIRST_ZONE, self::SECOND_ZONE]
     ): void
     {
         $scope = $this->createMock(ScopeConfigInterface::class);
@@ -47,7 +48,10 @@ class CloudflareClientTest extends TestCase
         $flags->method('getFlagData')->willReturnMap([
             [
                 'sr_cf_zones_' . substr(hash('sha256', 'account:'), 0, 32),
-                [self::FIRST_ZONE => 'example.com', self::SECOND_ZONE => 'example.org'],
+                array_intersect_key(
+                    [self::FIRST_ZONE => 'example.com', self::SECOND_ZONE => 'example.org'],
+                    array_flip($availableZoneIds)
+                ),
             ],
             [
                 'sr_cf_' . substr(hash('sha256', 'account'), 0, 32),
@@ -86,6 +90,12 @@ class CloudflareClientTest extends TestCase
         return [
             'default' => [null, [], [self::FIRST_ZONE, self::SECOND_ZONE]],
             'all' => ['all', [], [self::FIRST_ZONE, self::SECOND_ZONE]],
+            'Select All with an inaccessible deployed zone' => [
+                'all',
+                [self::SECOND_ZONE => ['worker-route' => ['pattern' => 'example.org/*', 'script' => 'magento-fpc']]],
+                [self::FIRST_ZONE, self::SECOND_ZONE],
+                [self::FIRST_ZONE],
+            ],
             'subset' => [self::SECOND_ZONE, [], [self::SECOND_ZONE]],
             'selected and pending cleanup' => [
                 self::SECOND_ZONE,

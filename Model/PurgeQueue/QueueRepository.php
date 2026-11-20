@@ -6,6 +6,8 @@ namespace SR\Cloudflare\Model\PurgeQueue;
 
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\AdapterInterface;
+use Magento\Framework\Exception\LocalizedException;
+use Magento\Framework\Lock\LockManagerInterface;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use SR\Cloudflare\Model\ZoneDirectory;
 
@@ -16,13 +18,15 @@ class QueueRepository
     public const TYPE_FILES = 'files';
     public const STATUS_PENDING = 'pending';
     public const STATUS_FAILED = 'failed';
+    private const WRITE_LOCK = 'sr_cloudflare_purge_queue_write';
 
     private ?bool $tableAvailable = null;
 
     public function __construct(
         private readonly ResourceConnection $resourceConnection,
         private readonly DateTime $dateTime,
-        private readonly ZoneDirectory $directory
+        private readonly ZoneDirectory $directory,
+        private readonly LockManagerInterface $lock
     ) {
     }
 
@@ -57,6 +61,15 @@ class QueueRepository
             return false;
         }
 
+        try {
+            return $this->withWriteLock(fn(): bool => $this->enqueueForActiveZones($type, $values));
+        } catch (\Exception) {
+            return false;
+        }
+    }
+
+    private function enqueueForActiveZones(string $type, array $values): bool
+    {
         $now = $this->dateTime->gmtDate();
         $rows = [];
 
@@ -92,6 +105,27 @@ class QueueRepository
         }
 
         return true;
+    }
+
+    public function withWriteLock(callable $operation): mixed
+    {
+        if (!$this->lock->lock(self::WRITE_LOCK, 5)) {
+            throw new LocalizedException(__('The Cloudflare purge queue is busy. Try again.'));
+        }
+        try {
+            return $operation();
+        } finally {
+            $this->lock->unlock(self::WRITE_LOCK);
+        }
+    }
+
+    public function deleteForZone(string $zoneId): int
+    {
+        if (!$this->isTableAvailable()) {
+            return 0;
+        }
+
+        return $this->getConnection()->delete($this->getTableName(), ['zone_id = ?' => $zoneId]);
     }
 
     /**
